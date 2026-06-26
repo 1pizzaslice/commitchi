@@ -12,9 +12,9 @@ pub fn draw(frame: &mut Frame<'_>, app: &App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),
+            Constraint::Length(6),
             Constraint::Min(6),
-            Constraint::Length(4),
+            Constraint::Length(5),
         ])
         .split(area);
 
@@ -27,6 +27,13 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let commit = app.selected_commit();
     let diff = app.diff();
     let (position, total) = app.position();
+    let (visible_lines, total_lines) = app.diff_reveal_progress();
+    let animation_config = app.animation_config();
+    let playback_state = if app.is_playing() {
+        "playing"
+    } else {
+        "paused"
+    };
     let truncated = if diff.truncated { " truncated" } else { "" };
     let lines = vec![
         Line::from(vec![
@@ -54,6 +61,14 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
             diff.stats.additions,
             diff.stats.deletions,
             truncated
+        )),
+        Line::from(format!(
+            "{} | reveal {}/{} @ {:.1} lps | playback {:.1} cps",
+            playback_state,
+            visible_lines,
+            total_lines,
+            animation_config.lines_per_second(),
+            animation_config.commits_per_second()
         )),
     ];
 
@@ -84,9 +99,14 @@ fn render_files(frame: &mut Frame<'_>, area: Rect, diff: &StructuredDiff) {
 }
 
 fn render_diff(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    let lines = diff_lines(app.diff());
+    let (visible_lines, total_lines) = app.diff_reveal_progress();
+    let lines = diff_lines(app.diff(), visible_lines);
     let paragraph = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title("Diff"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!("Diff {visible_lines}/{total_lines}")),
+        )
         .scroll((app.diff_scroll(), 0));
     frame.render_widget(paragraph, area);
 }
@@ -95,7 +115,8 @@ fn render_timeline(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let (position, total) = app.position();
     let lines = vec![
         Line::from(timeline_line(area.width, position, total)),
-        Line::from("h/l Left/Right: commit | j/k PgUp/PgDn: jump | Up/Down: scroll | q: quit"),
+        Line::from("h/l Left/Right: commit | j/k PgUp/PgDn: jump | Up/Down: scroll"),
+        Line::from("Space: play/pause | +/-: commit speed | []: reveal speed | q: quit"),
     ];
     let paragraph =
         Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Timeline"));
@@ -129,12 +150,31 @@ fn file_item_line(file: &FileDiff) -> Line<'static> {
     ])
 }
 
-fn diff_lines(diff: &StructuredDiff) -> Vec<Line<'static>> {
+fn diff_lines(diff: &StructuredDiff, visible_limit: usize) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
+    let total_lines = diff
+        .files
+        .iter()
+        .map(|file| file.lines.len())
+        .sum::<usize>();
+
+    if total_lines > 0 && visible_limit == 0 {
+        return vec![Line::styled(
+            "Revealing diff...",
+            Style::default().fg(Color::DarkGray),
+        )];
+    }
 
     for file in &diff.files {
         for line in &file.lines {
+            if lines.len() >= visible_limit {
+                break;
+            }
             lines.push(render_diff_line(line));
+        }
+
+        if lines.len() >= visible_limit {
+            break;
         }
     }
 

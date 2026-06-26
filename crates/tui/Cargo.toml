@@ -16,3 +16,7 @@ color-eyre.workspace = true
 commitchi-core = { path = "../core" }
 crossterm.workspace = true
 ratatui.workspace = true
+
+[dev-dependencies]
+git2.workspace = true
+tempfile.workspace = true

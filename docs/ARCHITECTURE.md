@@ -112,14 +112,14 @@ Main areas:
 
 - `app.rs`: app state and commands.
 - `events.rs`: input, tick, render, file-watch events.
-- `ui/`: Ratatui rendering functions.
+- `ui.rs`: Ratatui rendering functions.
 - `animation.rs`: diff reveal state.
 - `bindings.rs`: key mapping.
 - `config.rs`: config loading and defaults.
 
 ## Event Loop
 
-Use a channel-driven loop with separate event kinds:
+Long-term, use a channel-driven loop with separate event kinds:
 
 ```rust
 enum Event {
@@ -141,6 +141,8 @@ Recommended defaults:
 - Commit playback: configurable commits per second.
 
 Diff computation should happen off the render path. For Phase 1 it can be synchronous if fast enough, but the API should be shaped so Phase 2 can move work to a background task.
+
+Phase 2 implementation note: the TUI currently uses an in-process `EventSchedule` instead of worker threads or channels. It still separates `Input`, `Tick`, and `Render` handling so animation state can advance independently from key handling and terminal drawing. Diff loading remains synchronous when changing commits; background diff loading is still future work.
 
 ## Diff Model
 
@@ -221,3 +223,15 @@ Future strategy:
 - Phase 1 diff loading is synchronous, but app state calls through `RepoHandle::diff_for_commit` so Phase 2 can move diff work off the render path without changing the core model.
 - `commitchi-core` uses `git2` diff callbacks to build `StructuredDiff`, `FileDiff`, and `DiffLine` values directly.
 - The lockfile pins Ratatui's transitive `instability` dependency to `0.3.10`, which is compatible with Rust 1.87.
+
+## Phase 2 Implementation Notes
+
+- `crates/tui/src/animation.rs` owns `AnimationConfig` and `DiffAnimation`.
+- Diff reveal starts at zero visible lines and advances on tick events according to `lines_per_second`.
+- Commit playback advances on tick events according to `commits_per_second`, stops at the newest commit, and resets the reveal animation for each commit.
+- Phase 2 speed configuration is exposed through CLI flags only:
+  - `--lines-per-second`
+  - `--commits-per-second`
+- TOML config loading is still reserved for Phase 5.
+- `crates/tui/src/events.rs` provides the current input/tick/render event scheduler.
+- Pet UI, persistence, hooks, config files, and file watching remain out of scope until later phases.
