@@ -11,6 +11,11 @@ pub enum Command {
     LastCommit,
     ScrollUp,
     ScrollDown,
+    TogglePlayback,
+    FasterPlayback,
+    SlowerPlayback,
+    FasterReveal,
+    SlowerReveal,
     Noop,
 }
 
@@ -29,6 +34,11 @@ pub fn command_for_key(key: KeyEvent) -> Command {
         KeyCode::End => Command::LastCommit,
         KeyCode::Up => Command::ScrollUp,
         KeyCode::Down => Command::ScrollDown,
+        KeyCode::Char(' ') => Command::TogglePlayback,
+        KeyCode::Char('+') | KeyCode::Char('=') => Command::FasterPlayback,
+        KeyCode::Char('-') => Command::SlowerPlayback,
+        KeyCode::Char(']') => Command::FasterReveal,
+        KeyCode::Char('[') => Command::SlowerReveal,
         _ => Command::Noop,
     }
 }
@@ -86,6 +96,30 @@ mod tests {
         assert_eq!(
             command_for_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
             Command::Quit
+        );
+    }
+
+    #[test]
+    fn maps_playback_and_speed_keys() {
+        assert_eq!(
+            command_for_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE)),
+            Command::TogglePlayback
+        );
+        assert_eq!(
+            command_for_key(KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE)),
+            Command::FasterPlayback
+        );
+        assert_eq!(
+            command_for_key(KeyEvent::new(KeyCode::Char('-'), KeyModifiers::NONE)),
+            Command::SlowerPlayback
+        );
+        assert_eq!(
+            command_for_key(KeyEvent::new(KeyCode::Char(']'), KeyModifiers::NONE)),
+            Command::FasterReveal
+        );
+        assert_eq!(
+            command_for_key(KeyEvent::new(KeyCode::Char('['), KeyModifiers::NONE)),
+            Command::SlowerReveal
         );
     }
 }

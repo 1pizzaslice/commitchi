@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Phase 1 is complete on `phase/1-mvp-time-machine`. The Rust workspace and MVP time-machine TUI exist, and Phase 2 is pending explicit approval.
+Phase 2 is complete on `phase/2-diff-animation`. The TUI now supports animated diff reveal, playback controls, configurable animation speeds, and separate input/tick/render handling. Phase 3 is pending explicit approval.
 
 ## Phase Checklist
 
@@ -67,7 +67,7 @@ Exit criteria passed:
 
 ### Phase 2: Diff Animation
 
-Status: pending.
+Status: complete.
 
 Deliverables:
 
@@ -76,6 +76,25 @@ Deliverables:
 - Play/pause and speed controls.
 - Animation reset when moving commits.
 - Render loop separated from input/tick events.
+
+Completed:
+
+- Added TUI animation state for line-by-line diff reveal.
+- Added `--lines-per-second` and `--commits-per-second` CLI options with defaults of `30.0` and `1.0`.
+- Added playback controls:
+  - Space toggles play/pause.
+  - `+`/`=` and `-` adjust commit playback speed.
+  - `]` and `[` adjust line reveal speed.
+- Reset diff reveal progress when changing commits manually or during playback.
+- Split the main loop into explicit input, tick, and render events through `crates/tui/src/events.rs`.
+- Added tests for animation progression, speed controls, event scheduling, key mappings, playback advancement, and animation reset.
+
+Exit criteria passed:
+
+- `cargo fmt --all -- --check` passes.
+- `cargo clippy --workspace --all-targets -- -D warnings` passes.
+- `cargo test --workspace` passes.
+- Running the TUI in this repo animates diff lines and exits cleanly with `q`.
 
 ### Phase 3: Pet and Persistence
 

@@ -8,7 +8,7 @@ Goal: Rust TUI for animated Git history playback with a persistent pet companion
 
 ## Current State
 
-Phase 1 is complete on `phase/1-mvp-time-machine`.
+Phase 2 is complete on `phase/2-diff-animation`.
 
 The Rust workspace exists with:
 
@@ -29,16 +29,18 @@ The project directory `/home/anish/CODE01/kuchbhi/commitchi` is a valid Git repo
 
 ## Recommended Next Step
 
-Stop at the Phase 1 boundary and ask for explicit approval before starting Phase 2.
+Stop at the Phase 2 boundary and ask for explicit approval before starting Phase 3.
 
-On Phase 2 approval:
+On Phase 3 approval:
 
-1. Add diff animation state and controls only.
-2. Add configurable line reveal speed and commit playback speed.
-3. Separate render/input/tick handling enough to support animation.
-4. Keep pet UI, persistence, hooks, config files, and file watching for later phases.
-5. Run the dev harness commands.
-6. Update this handoff file and stop for Phase 3 approval.
+1. Add the pet mood model behavior beyond the current scaffold.
+2. Add repo-local and global JSON state persistence.
+3. Add `commitchi hook post-commit`.
+4. Add `commitchi install-hook`.
+5. Add file watching while the TUI is open.
+6. Add pet panel/sprite rendering.
+7. Run the dev harness commands.
+8. Update this handoff file and stop for Phase 4 approval.
 
 ## Remote Setup
 
@@ -61,7 +63,7 @@ Branch strategy:
 
 - Git access: use `git2` for MVP.
 - TUI: use `ratatui` plus `crossterm`.
-- Event loop: channel-driven tick/render/input events.
+- Event loop: separate tick/render/input event handling; channel-driven background work remains a future target.
 - Persistence: JSON state file through `serde_json`.
 - Config: TOML.
 - Hook model: `post-commit` hook invoking `commitchi hook post-commit`.
@@ -84,6 +86,25 @@ Branch strategy:
 - `commitchi-pet` is only scaffolded with basic domain enums/state; no pet UI or persistence exists yet.
 - The local Rust toolchain is 1.87. `Cargo.lock` pins Ratatui's transitive `instability` dependency to `0.3.10` so clippy works on this toolchain.
 
+## Phase 2 Implementation Notes
+
+- Phase 2 was implemented on `phase/2-diff-animation`.
+- `crates/tui/src/animation.rs` adds:
+  - `AnimationConfig` for line reveal and commit playback speeds.
+  - `DiffAnimation` for visible-line progress.
+- `crates/tui/src/events.rs` separates input, tick, and render events with an in-process scheduler.
+- `commitchi` accepts:
+  - `--lines-per-second`
+  - `--commits-per-second`
+- Keybindings added:
+  - Space toggles play/pause.
+  - `+`/`=` and `-` adjust commit playback speed.
+  - `]` and `[` adjust line reveal speed.
+- Diff reveal resets whenever the selected commit changes manually or through playback.
+- Playback stops automatically at the newest commit.
+- Diff loading is still synchronous when changing commits.
+- Pet UI, persistence, hooks, config files, and file watching are still deferred.
+
 ## Last Verification
 
 Commands passed:
@@ -95,7 +116,7 @@ cargo test --workspace
 cargo run -p commitchi-tui -- --repo .
 ```
 
-The smoke run opened the TUI against this repo and exited cleanly with `q`.
+The smoke run opened the TUI against this repo, animated diff lines, and exited cleanly with `q`.
 
 ## Phase Boundary Rule
 
