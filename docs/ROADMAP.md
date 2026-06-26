@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Phase 0 is complete. Research is complete, durable planning docs have been added, and no Rust implementation has started.
+Phase 1 is complete on `phase/1-mvp-time-machine`. The Rust workspace and MVP time-machine TUI exist, and Phase 2 is pending explicit approval.
 
 ## Phase Checklist
 
@@ -25,11 +25,11 @@ Completed:
 
 Next step:
 
-- User approval to begin implementation.
+- Phase 0 has no remaining work.
 
 ### Phase 1: MVP Time Machine
 
-Status: pending approval.
+Status: complete.
 
 Deliverables:
 
@@ -45,7 +45,21 @@ Deliverables:
 - Large diff truncation.
 - Basic tests for core repository/diff behavior using fixture repos.
 
-Exit criteria:
+Completed:
+
+- Added a Rust workspace with `commitchi-core`, `commitchi-pet`, and `commitchi-tui`.
+- Implemented repo discovery from cwd or `--repo`.
+- Implemented oldest-to-newest commit summaries.
+- Implemented static structured diffs with file list, stats, and truncation.
+- Implemented a Ratatui/Crossterm TUI with commit metadata, file pane, diff pane, and timeline scrubber.
+- Implemented basic keybindings:
+  - `h`/Left and `l`/Right for commit navigation.
+  - `j`/PageDown and `k`/PageUp for larger timeline jumps.
+  - Up/Down for diff scrolling.
+  - `q`, Esc, and Ctrl-C to quit.
+- Added core fixture-repo tests and TUI keybinding/timeline tests.
+
+Exit criteria passed:
 
 - `cargo test --workspace` passes.
 - Running the TUI in a Git repo lets the user navigate commits and read static diffs.

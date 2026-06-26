@@ -3,6 +3,7 @@
 ## Recommended Stack
 
 - Language: Rust.
+- Local MSRV: Rust 1.87 for the current harness.
 - Git access: `git2` for the MVP.
 - TUI: `ratatui` with `crossterm`.
 - Async/event loop: likely `tokio`, with a channel-driven event loop.
@@ -210,3 +211,13 @@ Future strategy:
 - Preload nearby commits during playback.
 - Add branch filtering and first-parent mode.
 
+## Phase 1 Implementation Notes
+
+- Workspace package names:
+  - `commitchi-core`
+  - `commitchi-pet`
+  - `commitchi-tui`
+- The `commitchi-tui` package exposes the `commitchi` binary.
+- Phase 1 diff loading is synchronous, but app state calls through `RepoHandle::diff_for_commit` so Phase 2 can move diff work off the render path without changing the core model.
+- `commitchi-core` uses `git2` diff callbacks to build `StructuredDiff`, `FileDiff`, and `DiffLine` values directly.
+- The lockfile pins Ratatui's transitive `instability` dependency to `0.3.10`, which is compatible with Rust 1.87.

@@ -2,9 +2,11 @@
 
 This document defines the expected local quality gates and fixtures. The actual commands will become active once the Rust workspace is scaffolded.
 
+The current local harness uses Rust 1.87.
+
 ## Standard Commands
 
-Use these commands once Phase 1 creates the workspace:
+Use these commands:
 
 ```sh
 cargo fmt --all -- --check
@@ -88,4 +90,3 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
-
