@@ -8,11 +8,17 @@ Goal: Rust TUI for animated Git history playback with a persistent pet companion
 
 ## Current State
 
-Phase 0 planning docs exist. No Rust source has been created yet. The next work session should start with Phase 1 after confirming approval.
+Phase 1 is complete on `phase/1-mvp-time-machine`.
+
+The Rust workspace exists with:
+
+- `crates/core` as `commitchi-core`
+- `crates/pet` as `commitchi-pet`
+- `crates/tui` as `commitchi-tui`, exposing the `commitchi` binary
 
 The workspace root `/home/anish/CODE01/kuchbhi` contains multiple unrelated projects. `commitchi/` is a new scoped project directory for this work.
 
-The workspace root has an empty `.git` directory, but `git status` does not recognize it as a valid repository. Do not assume the workspace root is a repo.
+The project directory `/home/anish/CODE01/kuchbhi/commitchi` is a valid Git repository. Do not run remote Git operations unless the user explicitly asks in that turn.
 
 ## User Confirmed Decisions
 
@@ -23,32 +29,26 @@ The workspace root has an empty `.git` directory, but `git status` does not reco
 
 ## Recommended Next Step
 
-Ask for approval to start Phase 1. On approval:
+Stop at the Phase 1 boundary and ask for explicit approval before starting Phase 2.
 
-1. Create Rust workspace under `commitchi/`.
-2. Add crates:
-   - `crates/core`
-   - `crates/pet`
-   - `crates/tui`
-3. Implement Phase 1 only:
-   - repo open
-   - commit summaries
-   - static diff
-   - file list
-   - scrubber
-   - navigation
-4. Run the dev harness commands that are available.
-5. Update this handoff file and stop for Phase 2 approval.
+On Phase 2 approval:
+
+1. Add diff animation state and controls only.
+2. Add configurable line reveal speed and commit playback speed.
+3. Separate render/input/tick handling enough to support animation.
+4. Keep pet UI, persistence, hooks, config files, and file watching for later phases.
+5. Run the dev harness commands.
+6. Update this handoff file and stop for Phase 3 approval.
 
 ## Remote Setup
 
-The intended remote is:
+The configured remote is:
 
 ```sh
 git@github.com:1pizzaslice/commitchi.git
 ```
 
-The user asked to configure and push Phase 0 docs now. After that push, future work should use `main` as the stable phase-boundary branch.
+Do not run remote Git operations, including `git push`, unless the user explicitly asks in that turn.
 
 Branch strategy:
 
@@ -66,6 +66,36 @@ Branch strategy:
 - Config: TOML.
 - Hook model: `post-commit` hook invoking `commitchi hook post-commit`.
 - File watching: `notify`.
+
+## Phase 1 Implementation Notes
+
+- `commitchi-core` opens repos with `git2::Repository::discover`.
+- Commit summaries are returned oldest-to-newest.
+- Diffs use first-parent comparison for merge commits.
+- Structured diff lines are built from `git2` callbacks, not parsed unified diff text.
+- Large diffs are capped with configurable `line_limit` and `file_limit`.
+- `commitchi-tui` currently loads diffs synchronously when changing commits.
+- Keybindings:
+  - `h`/Left and `l`/Right navigate one commit.
+  - `j`/PageDown and `k`/PageUp jump by ten commits.
+  - Up/Down scroll the diff pane.
+  - Home/End jump to first/last commit.
+  - `q`, Esc, and Ctrl-C quit.
+- `commitchi-pet` is only scaffolded with basic domain enums/state; no pet UI or persistence exists yet.
+- The local Rust toolchain is 1.87. `Cargo.lock` pins Ratatui's transitive `instability` dependency to `0.3.10` so clippy works on this toolchain.
+
+## Last Verification
+
+Commands passed:
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo run -p commitchi-tui -- --repo .
+```
+
+The smoke run opened the TUI against this repo and exited cleanly with `q`.
 
 ## Phase Boundary Rule
 

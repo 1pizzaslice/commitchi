@@ -1,0 +1,18 @@
+[package]
+name = "commitchi-tui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "commitchi"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+color-eyre.workspace = true
+commitchi-core = { path = "../core" }
+crossterm.workspace = true
+ratatui.workspace = true

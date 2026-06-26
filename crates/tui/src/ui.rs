@@ -1,0 +1,242 @@
+use commitchi_core::{DiffLine, DiffLineKind, FileDiff, FileStatus, StructuredDiff};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::Frame;
+
+use crate::app::App;
+
+pub fn draw(frame: &mut Frame<'_>, app: &App) {
+    let area = frame.area();
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(5),
+            Constraint::Min(6),
+            Constraint::Length(4),
+        ])
+        .split(area);
+
+    render_header(frame, layout[0], app);
+    render_body(frame, layout[1], app);
+    render_timeline(frame, layout[2], app);
+}
+
+fn render_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let commit = app.selected_commit();
+    let diff = app.diff();
+    let (position, total) = app.position();
+    let truncated = if diff.truncated { " truncated" } else { "" };
+    let lines = vec![
+        Line::from(vec![
+            Span::styled(
+                commit.short_hash.clone(),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" "),
+            Span::raw(commit.summary.clone()),
+        ]),
+        Line::from(format!(
+            "{} <{}> | parents: {} | repo: {}",
+            commit.author_name,
+            commit.author_email,
+            commit.parent_count,
+            app.repo_root().display()
+        )),
+        Line::from(format!(
+            "commit {}/{} | {} files | +{} -{}{}",
+            position,
+            total,
+            diff.stats.files_changed,
+            diff.stats.additions,
+            diff.stats.deletions,
+            truncated
+        )),
+    ];
+
+    let paragraph =
+        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Commit"));
+    frame.render_widget(paragraph, area);
+}
+
+fn render_body(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(34), Constraint::Min(20)])
+        .split(area);
+
+    render_files(frame, layout[0], app.diff());
+    render_diff(frame, layout[1], app);
+}
+
+fn render_files(frame: &mut Frame<'_>, area: Rect, diff: &StructuredDiff) {
+    let items = diff
+        .files
+        .iter()
+        .map(|file| ListItem::new(file_item_line(file)))
+        .collect::<Vec<_>>();
+
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Files"));
+    frame.render_widget(list, area);
+}
+
+fn render_diff(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let lines = diff_lines(app.diff());
+    let paragraph = Paragraph::new(lines)
+        .block(Block::default().borders(Borders::ALL).title("Diff"))
+        .scroll((app.diff_scroll(), 0));
+    frame.render_widget(paragraph, area);
+}
+
+fn render_timeline(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let (position, total) = app.position();
+    let lines = vec![
+        Line::from(timeline_line(area.width, position, total)),
+        Line::from("h/l Left/Right: commit | j/k PgUp/PgDn: jump | Up/Down: scroll | q: quit"),
+    ];
+    let paragraph =
+        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Timeline"));
+    frame.render_widget(paragraph, area);
+}
+
+fn file_item_line(file: &FileDiff) -> Line<'static> {
+    let marker = match file.status {
+        FileStatus::Added => "A",
+        FileStatus::Deleted => "D",
+        FileStatus::Modified => "M",
+        FileStatus::Renamed => "R",
+        FileStatus::Copied => "C",
+        FileStatus::TypeChanged => "T",
+        FileStatus::Conflicted => "!",
+        FileStatus::Truncated => "...",
+    };
+    let style = file_status_style(file.status);
+    let suffix = if file.binary {
+        " binary".to_owned()
+    } else if file.additions == 0 && file.deletions == 0 {
+        String::new()
+    } else {
+        format!(" +{} -{}", file.additions, file.deletions)
+    };
+
+    Line::from(vec![
+        Span::styled(format!("{marker:>3} "), style),
+        Span::raw(file.display_path()),
+        Span::styled(suffix, Style::default().fg(Color::DarkGray)),
+    ])
+}
+
+fn diff_lines(diff: &StructuredDiff) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+
+    for file in &diff.files {
+        for line in &file.lines {
+            lines.push(render_diff_line(line));
+        }
+    }
+
+    if lines.is_empty() {
+        lines.push(Line::from("No textual diff for this commit."));
+    }
+
+    lines
+}
+
+fn render_diff_line(line: &DiffLine) -> Line<'static> {
+    let style = diff_line_style(line.kind);
+    let old = line
+        .old_lineno
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    let new = line
+        .new_lineno
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    let prefix = match line.kind {
+        DiffLineKind::Addition => "+",
+        DiffLineKind::Deletion => "-",
+        DiffLineKind::Context => " ",
+        DiffLineKind::HunkHeader => "@",
+        DiffLineKind::FileHeader => "=",
+        DiffLineKind::Binary => "!",
+        DiffLineKind::Truncated => "...",
+    };
+
+    Line::from(vec![
+        Span::styled(format!("{prefix:>3} {old:>4} {new:>4} "), style),
+        Span::styled(line.content.clone(), style),
+    ])
+}
+
+fn timeline_line(width: u16, position: usize, total: usize) -> String {
+    if total == 0 {
+        return "[] 0/0".to_owned();
+    }
+
+    let reserved = 16usize;
+    let width = usize::from(width).saturating_sub(reserved).clamp(8, 80);
+    let mut bar = vec!['-'; width];
+
+    if total == 1 {
+        bar[0] = '*';
+    } else {
+        for index in 0..total {
+            let mark = index * (width - 1) / (total - 1);
+            bar[mark] = '|';
+        }
+        let active = (position - 1) * (width - 1) / (total - 1);
+        bar[active] = '*';
+    }
+
+    format!(
+        "[{}] {}/{}",
+        bar.into_iter().collect::<String>(),
+        position,
+        total
+    )
+}
+
+fn file_status_style(status: FileStatus) -> Style {
+    match status {
+        FileStatus::Added => Style::default().fg(Color::Green),
+        FileStatus::Deleted => Style::default().fg(Color::Red),
+        FileStatus::Modified => Style::default().fg(Color::Blue),
+        FileStatus::Renamed | FileStatus::Copied => Style::default().fg(Color::Cyan),
+        FileStatus::TypeChanged => Style::default().fg(Color::Magenta),
+        FileStatus::Conflicted => Style::default().fg(Color::LightRed),
+        FileStatus::Truncated => Style::default().fg(Color::DarkGray),
+    }
+}
+
+fn diff_line_style(kind: DiffLineKind) -> Style {
+    match kind {
+        DiffLineKind::Addition => Style::default().fg(Color::Green),
+        DiffLineKind::Deletion => Style::default().fg(Color::Red),
+        DiffLineKind::HunkHeader => Style::default().fg(Color::Cyan),
+        DiffLineKind::FileHeader => Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+        DiffLineKind::Binary | DiffLineKind::Truncated => Style::default().fg(Color::DarkGray),
+        DiffLineKind::Context => Style::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn timeline_marks_single_commit() {
+        assert!(timeline_line(40, 1, 1).contains("*"));
+    }
+
+    #[test]
+    fn timeline_marks_current_position() {
+        let line = timeline_line(40, 2, 3);
+        assert!(line.contains("2/3"));
+        assert_eq!(line.matches('*').count(), 1);
+    }
+}
