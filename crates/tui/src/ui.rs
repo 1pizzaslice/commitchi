@@ -1,5 +1,5 @@
 use commitchi_core::{DiffLine, DiffLineKind, FileDiff, FileStatus, StructuredDiff};
-use commitchi_pet::{now_seconds, ActivityRecord, Mood, PetScope};
+use commitchi_pet::{now_seconds, ActivityRecord, Mood, PetScope, Reaction};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -129,11 +129,22 @@ fn render_diff(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
 fn render_pet(frame: &mut Frame<'_>, area: Rect, status: &PetStatus) {
     let mood = primary_mood(status);
-    let style = mood_style(mood);
-    let mut lines = pet_sprite(mood)
-        .into_iter()
-        .map(|line| Line::styled(line, style))
-        .collect::<Vec<_>>();
+    let reaction = status.reaction;
+    let sprite_style = if reaction == Reaction::Calm {
+        mood_style(mood)
+    } else {
+        reaction_style(reaction)
+    };
+    let mut lines = vec![
+        Line::styled(reaction_message(reaction), reaction_style(reaction)),
+        Line::from(""),
+    ];
+
+    lines.extend(
+        pet_sprite(mood, reaction)
+            .into_iter()
+            .map(|line| Line::styled(line, sprite_style)),
+    );
 
     lines.push(Line::from(""));
     match status.scope {
@@ -233,13 +244,37 @@ fn activity_age(activity: &ActivityRecord) -> String {
     }
 }
 
-fn pet_sprite(mood: Mood) -> Vec<&'static str> {
+fn pet_sprite(mood: Mood, reaction: Reaction) -> Vec<&'static str> {
+    let face = match reaction {
+        Reaction::Calm => mood_face(mood),
+        Reaction::Nodding => "( -v- )",
+        Reaction::Excited => "( ^o^ )",
+        Reaction::Curious => "( ?.? )",
+        Reaction::Confused => "( @.@ )",
+        Reaction::Wincing => "( >_< )",
+    };
+
+    vec![" /\\_/\\", face, " /|_|\\", "  / \\"]
+}
+
+fn mood_face(mood: Mood) -> &'static str {
     match mood {
-        Mood::Thriving => vec![" /\\_/\\", "( ^.^ )", " /|_|\\", "  / \\"],
-        Mood::Content => vec![" /\\_/\\", "( o.o )", " /|_|\\", "  / \\"],
-        Mood::Neutral => vec![" /\\_/\\", "( -.- )", " /|_|\\", "  / \\"],
-        Mood::Anxious => vec![" /\\_/\\", "( o_o )", " /|_|\\", "  / \\"],
-        Mood::Sulking => vec![" /\\_/\\", "( v_v )", " /|_|\\", "  / \\"],
+        Mood::Thriving => "( ^.^ )",
+        Mood::Content => "( o.o )",
+        Mood::Neutral => "( -.- )",
+        Mood::Anxious => "( o_o )",
+        Mood::Sulking => "( v_v )",
+    }
+}
+
+fn reaction_message(reaction: Reaction) -> &'static str {
+    match reaction {
+        Reaction::Calm => "steady change",
+        Reaction::Nodding => "tiny streak",
+        Reaction::Excited => "large addition",
+        Reaction::Curious => "rename run",
+        Reaction::Confused => "unclear diff",
+        Reaction::Wincing => "large deletion",
     }
 }
 
@@ -383,6 +418,19 @@ fn mood_style(mood: Mood) -> Style {
     }
 }
 
+fn reaction_style(reaction: Reaction) -> Style {
+    match reaction {
+        Reaction::Calm => Style::default().fg(Color::DarkGray),
+        Reaction::Nodding => Style::default().fg(Color::Green),
+        Reaction::Excited => Style::default()
+            .fg(Color::LightGreen)
+            .add_modifier(Modifier::BOLD),
+        Reaction::Curious => Style::default().fg(Color::Cyan),
+        Reaction::Confused => Style::default().fg(Color::LightMagenta),
+        Reaction::Wincing => Style::default().fg(Color::LightRed),
+    }
+}
+
 fn diff_line_style(kind: DiffLineKind) -> Style {
     match kind {
         DiffLineKind::Addition => Style::default().fg(Color::Green),
@@ -410,5 +458,11 @@ mod tests {
         let line = timeline_line(40, 2, 3);
         assert!(line.contains("2/3"));
         assert_eq!(line.matches('*').count(), 1);
+    }
+
+    #[test]
+    fn reaction_overlay_changes_sprite_face() {
+        assert!(pet_sprite(Mood::Neutral, Reaction::Excited).contains(&"( ^o^ )"));
+        assert_eq!(reaction_message(Reaction::Wincing), "large deletion");
     }
 }

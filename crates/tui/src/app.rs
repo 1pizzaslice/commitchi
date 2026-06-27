@@ -1,9 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use commitchi_core::{CommitSummary, DiffOptions, Error as CoreError, RepoHandle, StructuredDiff};
+use commitchi_core::{
+    CommitSummary, DiffOptions, Error as CoreError, FileStatus, RepoHandle, StructuredDiff,
+};
 use commitchi_pet::{
-    now_seconds, ActivityRecord, Mood, MoodConfig, PetScope, PetState, PetStateFiles,
+    now_seconds, ActivityRecord, Mood, MoodConfig, PetScope, PetState, PetStateFiles, Reaction,
+    ReactionStats,
 };
 use thiserror::Error;
 
@@ -38,6 +41,8 @@ pub struct App {
     pet_state_files: PetStateFiles,
     repo_pet_state: PetState,
     global_pet_state: PetState,
+    pet_reaction: Reaction,
+    tiny_commit_streak: usize,
 }
 
 impl App {
@@ -56,6 +61,7 @@ impl App {
         let selected = 0;
         let diff = repo.diff_for_commit(&commits[selected].hash, diff_options)?;
         let diff_animation = DiffAnimation::new(count_diff_lines(&diff));
+        let (pet_reaction, tiny_commit_streak) = reaction_for_diff(&diff, 0);
         let pet_state_files = PetStateFiles::for_git_dir(repo.git_dir(), pet_scope)?;
         let _ = pet_state_files.ensure_parent_dirs();
         let repo_pet_state = pet_state_files.load_repo_or_default()?;
@@ -77,6 +83,8 @@ impl App {
             pet_state_files,
             repo_pet_state,
             global_pet_state,
+            pet_reaction,
+            tiny_commit_streak,
         })
     }
 
@@ -163,6 +171,7 @@ impl App {
         let now = now_seconds();
         PetStatus {
             scope: self.pet_scope,
+            reaction: self.pet_reaction,
             repo_mood: self
                 .pet_scope
                 .includes_repo()
@@ -235,19 +244,33 @@ impl App {
             return Ok(());
         }
 
+        let previous = self.selected;
         self.selected = next;
         self.diff_scroll = 0;
         self.diff = self
             .repo
             .diff_for_commit(&self.selected_commit().hash, self.diff_options)?;
         self.diff_animation.reset(count_diff_lines(&self.diff));
+        self.refresh_pet_reaction(next == previous + 1);
         Ok(())
+    }
+
+    fn refresh_pet_reaction(&mut self, sequential_forward: bool) {
+        let prior_streak = if sequential_forward {
+            self.tiny_commit_streak
+        } else {
+            0
+        };
+        let (reaction, tiny_commit_streak) = reaction_for_diff(&self.diff, prior_streak);
+        self.pet_reaction = reaction;
+        self.tiny_commit_streak = tiny_commit_streak;
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetStatus {
     pub scope: PetScope,
+    pub reaction: Reaction,
     pub repo_mood: Option<Mood>,
     pub global_mood: Option<Mood>,
     pub repo_last_activity: Option<ActivityRecord>,
@@ -256,6 +279,31 @@ pub struct PetStatus {
 
 fn count_diff_lines(diff: &StructuredDiff) -> usize {
     diff.files.iter().map(|file| file.lines.len()).sum()
+}
+
+fn reaction_for_diff(diff: &StructuredDiff, prior_tiny_commit_streak: usize) -> (Reaction, usize) {
+    let mut stats = ReactionStats {
+        files_changed: diff.stats.files_changed,
+        additions: diff.stats.additions,
+        deletions: diff.stats.deletions,
+        binary_files: diff.files.iter().filter(|file| file.binary).count(),
+        renamed_files: diff
+            .files
+            .iter()
+            .filter(|file| file.status == FileStatus::Renamed)
+            .count(),
+        truncated: diff.truncated,
+        tiny_commit_streak: 0,
+    };
+
+    let tiny_commit_streak = if stats.is_tiny_commit() {
+        prior_tiny_commit_streak.saturating_add(1)
+    } else {
+        0
+    };
+    stats.tiny_commit_streak = tiny_commit_streak;
+
+    (Reaction::from_stats(stats), tiny_commit_streak)
 }
 
 #[cfg(test)]
@@ -381,5 +429,30 @@ mod tests {
 
         assert_eq!(app.position(), (3, 3));
         assert!(!app.is_playing());
+    }
+
+    #[test]
+    fn playback_updates_pet_reaction_for_tiny_commit_streaks() {
+        let fixture = Fixture::new();
+        fixture.write_file("story.txt", "one\n");
+        fixture.commit("first");
+        fixture.write_file("story.txt", "two\n");
+        fixture.commit("second");
+        fixture.write_file("story.txt", "three\n");
+        fixture.commit("third");
+        let mut app = app_for_fixture(&fixture, AnimationConfig::new(100.0, 2.0));
+
+        assert_eq!(app.pet_reaction, Reaction::Calm);
+
+        app.apply_command(Command::TogglePlayback)
+            .expect("toggle playback");
+        app.tick(Duration::from_millis(500)).expect("first tick");
+        assert_eq!(app.position(), (2, 3));
+        assert_eq!(app.pet_reaction, Reaction::Calm);
+
+        app.tick(Duration::from_millis(500)).expect("second tick");
+
+        assert_eq!(app.position(), (3, 3));
+        assert_eq!(app.pet_reaction, Reaction::Nodding);
     }
 }

@@ -8,7 +8,7 @@ Goal: Rust TUI for animated Git history playback with a persistent pet companion
 
 ## Current State
 
-Phase 3 is complete on `phase/3-pet-persistence`.
+Phase 4 is complete on `phase/4-the-merge`.
 
 The Rust workspace exists with:
 
@@ -29,16 +29,16 @@ The project directory `/home/anish/CODE01/kuchbhi/commitchi` is a valid Git repo
 
 ## Recommended Next Step
 
-Stop at the Phase 3 boundary and ask for explicit approval before starting Phase 4.
+Stop at the Phase 4 boundary and ask for explicit approval before starting Phase 5.
 
-On Phase 4 approval:
+On Phase 5 approval:
 
-1. Add deterministic reaction heuristics based on the selected commit's structured diff stats.
-2. Add reaction text/sprite overlays.
-3. Wire playback-to-pet events so reactions update as commits advance.
-4. Keep mood persistence and hook behavior unchanged unless Phase 4 requires a small extension.
+1. Add TOML config loading for pet, animation, and git limits.
+2. Add README install and usage instructions.
+3. Strengthen release-oriented CLI help and cross-platform notes.
+4. Add any remaining robustness tests called out by the harness.
 5. Run the dev harness commands.
-6. Update this handoff file and stop for Phase 5 approval.
+6. Update this handoff file and stop for final approval.
 
 ## Remote Setup
 
@@ -121,7 +121,23 @@ Branch strategy:
 - The TUI watches active pet state directories with `notify` and reloads pet state on file changes.
 - TUI pet state directory creation is best-effort so read-only Git metadata does not prevent history playback.
 - The pet panel renders in the right body column at normal 80-column terminal width and is hidden on narrower layouts.
-- Phase 4 reaction heuristics based on diff stats are not implemented yet.
+- Phase 3 deferred structured-diff reaction heuristics to Phase 4.
+
+## Phase 4 Implementation Notes
+
+- Phase 4 was implemented on `phase/4-the-merge`.
+- `commitchi-pet` now owns deterministic `ReactionStats` classification.
+- Reaction outcomes:
+  - `confused` for truncated or binary-only diffs.
+  - `curious` for rename-only changes touching at least three files.
+  - `excited` for large addition-heavy diffs.
+  - `wincing` for large deletion-heavy diffs.
+  - `nodding` for three tiny commits in a sequential playback/navigation streak.
+  - `calm` for unremarkable diffs.
+- `commitchi-tui` maps the selected commit's `StructuredDiff` into reaction stats and exposes the current reaction through `PetStatus`.
+- Forward playback and one-step forward navigation preserve the tiny-commit streak; jumps and backward navigation reset it.
+- The pet panel now renders a short reaction message and a reaction-specific face above the persisted mood/status lines.
+- Mood persistence, hook behavior, and state file format remain unchanged.
 
 ## Last Verification
 
@@ -134,16 +150,7 @@ cargo test --workspace
 cargo run -p commitchi-tui -- --repo .
 ```
 
-The smoke run opened the TUI against this repo, showed the pet panel at 80 columns, animated diff lines, and exited cleanly with `q`.
-
-Additional Phase 3 smoke:
-
-```sh
-cargo run -p commitchi-tui -- --repo /tmp/commitchi-hook-smoke.2lVcDj hook post-commit --scope repo
-cargo run -p commitchi-tui -- --repo /tmp/commitchi-hook-smoke.2lVcDj install-hook --scope repo
-```
-
-The temp repo smoke wrote `.git/commitchi/state.json` with one activity record and installed `.git/hooks/post-commit` with the Commitchi managed block.
+The smoke run opened the TUI against this repo, showed the pet panel at 80 columns, rendered the `large addition` reaction overlay with the excited face, animated diff lines, and exited cleanly with `q`.
 
 ## Phase Boundary Rule
 
