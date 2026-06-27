@@ -1,0 +1,39 @@
+name: Release
+
+# Cut a release by pushing a version tag, e.g.:
+#   git tag v0.1.0 && git push origin v0.1.0
+# This builds static Linux binaries and attaches them (plus SHA-256 sums) to a
+# GitHub Release for that tag. The install.sh script downloads these artifacts.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+          - target: aarch64-unknown-linux-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Builds the `commitchi` binary for the target (using cross for non-native
+      # targets), creates commitchi-<target>.tar.gz with a SHA-256 sum, and
+      # uploads everything to the GitHub Release for the pushed tag.
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: commitchi
+          target: ${{ matrix.target }}
+          archive: commitchi-$target
+          checksum: sha256
+          token: ${{ secrets.GITHUB_TOKEN }}
