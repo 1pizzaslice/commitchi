@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Phase 3 is complete on `phase/3-pet-persistence`. The TUI now supports pet mood persistence, repo/global state scopes, hook recording, hook installation, live state reload, and pet panel rendering. Phase 4 is pending explicit approval.
+Phase 4 is complete on `phase/4-the-merge`. The TUI now computes deterministic pet reactions from structured diff stats, renders reaction text/sprite overlays, and refreshes reactions as playback advances. Phase 5 is pending explicit approval.
 
 ## Phase Checklist
 
@@ -131,13 +131,29 @@ Exit criteria passed:
 
 ### Phase 4: The Merge
 
-Status: pending.
+Status: complete.
 
 Deliverables:
 
 - Reaction heuristics based on current commit stats.
 - Reaction text/sprite overlays.
 - Playback-to-pet event wiring.
+
+Completed:
+
+- Added deterministic `ReactionStats` mapping in `commitchi-pet`.
+- Added reactions for truncated or binary-only diffs, large rename-only diffs, large additions, large deletions, and tiny commit streaks.
+- Wired the TUI to derive reaction stats from the selected commit's structured diff.
+- Preserved a sequential tiny-commit streak during forward playback/navigation.
+- Rendered reaction text and reaction-specific sprite faces in the pet panel.
+- Added pet and TUI tests for reaction mapping and playback reaction updates.
+
+Exit criteria passed:
+
+- `cargo fmt --all -- --check` passes.
+- `cargo clippy --workspace --all-targets -- -D warnings` passes.
+- `cargo test --workspace` passes.
+- Running the TUI in this repo shows the pet reaction overlay and exits cleanly with `q`.
 
 ### Phase 5: Polish
 

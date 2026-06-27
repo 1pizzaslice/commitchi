@@ -248,4 +248,18 @@ Future strategy:
 - `commitchi install-hook` writes a managed post-commit block that invokes `commitchi hook post-commit --scope <scope>`.
 - `commitchi-tui` watches active pet state file directories with `notify` and reloads state on change. TUI startup treats watch-directory creation as best-effort so read-only Git metadata does not block history playback.
 - The pet panel renders at normal 80-column width and is hidden only on narrower layouts where diff readability would collapse.
-- Phase 3 does not wire structured diff stats into pet reactions; that remains Phase 4.
+- Phase 3 deferred structured-diff reaction heuristics to Phase 4.
+
+## Phase 4 Implementation Notes
+
+- `commitchi-pet` owns `Reaction`, `ReactionStats`, and deterministic reaction classification.
+- Reaction classification is based on structured diff data supplied by the TUI, not unified diff text.
+- Current heuristics:
+  - Truncated diffs and binary-only diffs map to `confused`.
+  - Rename-only changes touching at least three files map to `curious`.
+  - Additions or deletions of at least 120 lines, when at least double the opposite side, map to `excited` or `wincing`.
+  - Three tiny commits in a sequential playback/navigation streak map to `nodding`.
+  - Other commits map to `calm`.
+- `commitchi-tui` maps `StructuredDiff` into `ReactionStats`, including file status counts and binary/truncated flags.
+- The tiny-commit streak is intentionally app-local and playback-local; it is not persisted to pet state.
+- The pet panel renders a short reaction message and reaction-specific face while leaving persisted mood scope/status behavior unchanged.

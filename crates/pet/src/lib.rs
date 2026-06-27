@@ -136,10 +136,109 @@ impl fmt::Display for Mood {
 #[serde(rename_all = "kebab-case")]
 pub enum Reaction {
     Calm,
+    Nodding,
     Excited,
     Curious,
     Confused,
     Wincing,
+}
+
+impl Reaction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Calm => "calm",
+            Self::Nodding => "nodding",
+            Self::Excited => "excited",
+            Self::Curious => "curious",
+            Self::Confused => "confused",
+            Self::Wincing => "wincing",
+        }
+    }
+
+    pub fn from_stats(stats: ReactionStats) -> Self {
+        if stats.truncated || stats.is_binary_only() {
+            return Self::Confused;
+        }
+
+        if stats.is_large_rename_only() {
+            return Self::Curious;
+        }
+
+        if stats.deletions >= LARGE_CHANGE_LINES
+            && stats.deletions >= stats.additions.saturating_mul(2)
+        {
+            return Self::Wincing;
+        }
+
+        if stats.additions >= LARGE_CHANGE_LINES
+            && stats.additions >= stats.deletions.saturating_mul(2)
+        {
+            return Self::Excited;
+        }
+
+        if stats.tiny_commit_streak >= TINY_COMMIT_STREAK {
+            return Self::Nodding;
+        }
+
+        Self::Calm
+    }
+}
+
+impl Default for Reaction {
+    fn default() -> Self {
+        Self::Calm
+    }
+}
+
+impl fmt::Display for Reaction {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+const LARGE_CHANGE_LINES: usize = 120;
+const LARGE_RENAME_ONLY_FILES: usize = 3;
+const TINY_COMMIT_MAX_FILES: usize = 2;
+const TINY_COMMIT_MAX_LINES: usize = 12;
+const TINY_COMMIT_STREAK: usize = 3;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ReactionStats {
+    pub files_changed: usize,
+    pub additions: usize,
+    pub deletions: usize,
+    pub binary_files: usize,
+    pub renamed_files: usize,
+    pub truncated: bool,
+    pub tiny_commit_streak: usize,
+}
+
+impl ReactionStats {
+    pub fn total_changed_lines(self) -> usize {
+        self.additions.saturating_add(self.deletions)
+    }
+
+    pub fn is_tiny_commit(self) -> bool {
+        self.files_changed > 0
+            && self.files_changed <= TINY_COMMIT_MAX_FILES
+            && self.total_changed_lines() <= TINY_COMMIT_MAX_LINES
+            && !self.truncated
+            && !self.is_binary_only()
+    }
+
+    fn is_binary_only(self) -> bool {
+        self.files_changed > 0
+            && self.binary_files == self.files_changed
+            && self.additions == 0
+            && self.deletions == 0
+    }
+
+    fn is_large_rename_only(self) -> bool {
+        self.files_changed >= LARGE_RENAME_ONLY_FILES
+            && self.renamed_files == self.files_changed
+            && self.additions == 0
+            && self.deletions == 0
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -600,6 +699,88 @@ mod tests {
         assert_eq!(
             repo_state_path("/repo/.git"),
             PathBuf::from("/repo/.git/commitchi/state.json")
+        );
+    }
+
+    #[test]
+    fn reaction_is_confused_for_truncated_or_binary_only_diffs() {
+        assert_eq!(
+            Reaction::from_stats(ReactionStats {
+                files_changed: 1,
+                additions: 500,
+                truncated: true,
+                ..ReactionStats::default()
+            }),
+            Reaction::Confused
+        );
+        assert_eq!(
+            Reaction::from_stats(ReactionStats {
+                files_changed: 2,
+                binary_files: 2,
+                ..ReactionStats::default()
+            }),
+            Reaction::Confused
+        );
+    }
+
+    #[test]
+    fn reaction_is_curious_for_large_rename_only_diffs() {
+        assert_eq!(
+            Reaction::from_stats(ReactionStats {
+                files_changed: 3,
+                renamed_files: 3,
+                ..ReactionStats::default()
+            }),
+            Reaction::Curious
+        );
+    }
+
+    #[test]
+    fn reaction_tracks_large_additions_and_deletions() {
+        assert_eq!(
+            Reaction::from_stats(ReactionStats {
+                files_changed: 4,
+                additions: 160,
+                deletions: 20,
+                ..ReactionStats::default()
+            }),
+            Reaction::Excited
+        );
+        assert_eq!(
+            Reaction::from_stats(ReactionStats {
+                files_changed: 4,
+                additions: 20,
+                deletions: 160,
+                ..ReactionStats::default()
+            }),
+            Reaction::Wincing
+        );
+    }
+
+    #[test]
+    fn reaction_nods_for_tiny_commit_streaks() {
+        let tiny = ReactionStats {
+            files_changed: 1,
+            additions: 2,
+            tiny_commit_streak: 3,
+            ..ReactionStats::default()
+        };
+
+        assert!(tiny.is_tiny_commit());
+        assert_eq!(Reaction::from_stats(tiny), Reaction::Nodding);
+    }
+
+    #[test]
+    fn reaction_defaults_to_calm_for_unremarkable_diffs() {
+        assert_eq!(
+            Reaction::from_stats(ReactionStats {
+                files_changed: 2,
+                additions: 10,
+                deletions: 8,
+                tiny_commit_streak: 1,
+                ..ReactionStats::default()
+            }),
+            Reaction::Calm
         );
     }
 }
