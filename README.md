@@ -43,11 +43,17 @@ Inside the TUI:
 - `h`/Left and `l`/Right navigate commits.
 - `j`/PageDown and `k`/PageUp jump through the timeline.
 - Home/End jump to first/last commit.
+- `g` or `:` open a jump prompt to go to a timeline position or commit hash.
 - Up/Down scroll the diff pane.
 - Space toggles play/pause.
 - `+`/`=` and `-` adjust commit playback speed.
 - `]` and `[` adjust line reveal speed.
 - `q`, Esc, or Ctrl-C exits.
+
+In the jump prompt, type a 1-based timeline position (for example `42`) or a
+commit-hash prefix (for example `a1b2c3`), then press Enter to jump or Esc to
+cancel. A bare in-range number is treated as a position; anything else is
+matched as a case-insensitive hash prefix.
 
 ## Config
 

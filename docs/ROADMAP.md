@@ -2,7 +2,9 @@
 
 ## Current Status
 
-Phase 5 is complete on `phase/5-polish`. Commitchi now loads optional TOML config, has release-oriented help and README usage/install docs, and includes broader core fixture coverage for rename, binary, truncation, and merge behavior.
+Phase 5 is complete and merged to `main`. Commitchi now loads optional TOML config, has release-oriented help and README usage/install docs, and includes broader core fixture coverage for rename, binary, truncation, and merge behavior.
+
+A follow-up closed the remaining PRD navigation gap: the TUI now has an interactive jump prompt (`g` or `:`) to go to a timeline position or commit-hash prefix. See the Mode 1 "jump to commit hash or timeline position" requirement in the PRD.
 
 ## Phase Checklist
 

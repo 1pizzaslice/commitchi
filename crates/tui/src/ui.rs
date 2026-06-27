@@ -186,11 +186,37 @@ fn render_pet(frame: &mut Frame<'_>, area: Rect, status: &PetStatus) {
 
 fn render_timeline(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let (position, total) = app.position();
-    let lines = vec![
-        Line::from(timeline_line(area.width, position, total)),
-        Line::from("h/l Left/Right: commit | j/k PgUp/PgDn: jump | Up/Down: scroll"),
-        Line::from("Space: play/pause | +/-: commit speed | []: reveal speed | q: quit"),
-    ];
+    let mut lines = vec![Line::from(timeline_line(area.width, position, total))];
+
+    if let Some((buffer, error)) = app.jump_state() {
+        lines.push(Line::from(vec![
+            Span::styled(
+                "jump> ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(format!("{buffer}_")),
+        ]));
+        match error {
+            Some(message) => lines.push(Line::styled(
+                message.to_owned(),
+                Style::default().fg(Color::LightRed),
+            )),
+            None => lines.push(Line::styled(
+                "position or hash | Enter: go | Esc: cancel",
+                Style::default().fg(Color::DarkGray),
+            )),
+        }
+    } else {
+        lines.push(Line::from(
+            "h/l: commit | j/k PgUp/PgDn: jump | g/:: goto | Up/Down: scroll",
+        ));
+        lines.push(Line::from(
+            "Space: play/pause | +/-: commit speed | []: reveal speed | q: quit",
+        ));
+    }
+
     let paragraph =
         Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Timeline"));
     frame.render_widget(paragraph, area);
