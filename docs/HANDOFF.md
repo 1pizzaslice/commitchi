@@ -151,6 +151,24 @@ Branch strategy:
 - CLI help now includes version, config guidance, option descriptions, and subcommand descriptions.
 - Core fixture tests now cover rename detection, binary diffs, file-list truncation, and first-parent merge diffs.
 
+## Post-Phase-5 Follow-up: Interactive Jump
+
+- Closed the PRD Mode 1 requirement to "jump to commit hash or timeline position".
+- `crates/tui/src/bindings.rs` maps `g` and `:` to `Command::BeginJump`.
+- `crates/tui/src/app.rs` adds an `InputMode` (`Normal` / `Jump`) layered over the
+  normal keybindings, plus `App::handle_jump_key`, `is_jumping`, and `jump_state`.
+- While the jump prompt is open, `main.rs` routes raw key events to
+  `App::handle_jump_key` instead of `command_for_key`. Enter commits, Esc cancels,
+  Backspace edits, Ctrl-C still quits.
+- `resolve_jump` is a pure resolver: a bare in-range number is a 1-based timeline
+  position; anything else (including an out-of-range number) is matched as a
+  case-insensitive commit-hash prefix. Empty, out-of-range, unmatched, and
+  ambiguous queries return an error shown in the prompt without moving.
+- Opening the prompt pauses playback. The pet streak and animation reset follow
+  the existing `move_to_from_input` path, identical to other navigation.
+- `crates/tui/src/ui.rs` renders the prompt (`jump> ...`) and an error/help line in
+  the timeline footer, and adds a `g/:: goto` hint.
+
 ## Last Verification
 
 Commands passed:

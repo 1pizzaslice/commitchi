@@ -16,6 +16,7 @@ pub enum Command {
     SlowerPlayback,
     FasterReveal,
     SlowerReveal,
+    BeginJump,
     Noop,
 }
 
@@ -39,6 +40,7 @@ pub fn command_for_key(key: KeyEvent) -> Command {
         KeyCode::Char('-') => Command::SlowerPlayback,
         KeyCode::Char(']') => Command::FasterReveal,
         KeyCode::Char('[') => Command::SlowerReveal,
+        KeyCode::Char('g') | KeyCode::Char(':') => Command::BeginJump,
         _ => Command::Noop,
     }
 }
@@ -120,6 +122,18 @@ mod tests {
         assert_eq!(
             command_for_key(KeyEvent::new(KeyCode::Char('['), KeyModifiers::NONE)),
             Command::SlowerReveal
+        );
+    }
+
+    #[test]
+    fn maps_jump_keys() {
+        assert_eq!(
+            command_for_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE)),
+            Command::BeginJump
+        );
+        assert_eq!(
+            command_for_key(KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE)),
+            Command::BeginJump
         );
     }
 }

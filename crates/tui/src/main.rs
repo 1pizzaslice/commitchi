@@ -290,8 +290,12 @@ fn handle_app_event<B: Backend>(
 ) -> Result<bool> {
     match app_event {
         AppEvent::Input(key) => {
-            let command = command_for_key(key);
-            app.apply_command(command).map_err(Into::into)
+            if app.is_jumping() {
+                app.handle_jump_key(key).map_err(Into::into)
+            } else {
+                let command = command_for_key(key);
+                app.apply_command(command).map_err(Into::into)
+            }
         }
         AppEvent::Tick(elapsed) => {
             app.tick(elapsed)?;

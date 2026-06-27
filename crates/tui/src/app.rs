@@ -8,6 +8,7 @@ use commitchi_pet::{
     now_seconds, ActivityRecord, Mood, MoodConfig, PetScope, PetState, PetStateFiles, Reaction,
     ReactionStats,
 };
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use thiserror::Error;
 
 use crate::animation::{AnimationConfig, DiffAnimation};
@@ -43,6 +44,21 @@ pub struct App {
     global_pet_state: PetState,
     pet_reaction: Reaction,
     tiny_commit_streak: usize,
+    input_mode: InputMode,
+}
+
+/// Active text-entry mode layered over the normal keybindings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum InputMode {
+    Normal,
+    Jump(JumpPrompt),
+}
+
+/// State for the interactive "jump to position or commit hash" prompt.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct JumpPrompt {
+    buffer: String,
+    error: Option<String>,
 }
 
 impl App {
@@ -86,6 +102,7 @@ impl App {
             global_pet_state,
             pet_reaction,
             tiny_commit_streak,
+            input_mode: InputMode::Normal,
         })
     }
 
@@ -114,10 +131,78 @@ impl App {
             Command::SlowerPlayback => self.animation_config.decrease_commit_speed(),
             Command::FasterReveal => self.animation_config.increase_line_speed(),
             Command::SlowerReveal => self.animation_config.decrease_line_speed(),
+            Command::BeginJump => self.begin_jump(),
             Command::Noop => {}
         }
 
         Ok(false)
+    }
+
+    /// Whether the interactive jump prompt is currently capturing input.
+    pub fn is_jumping(&self) -> bool {
+        matches!(self.input_mode, InputMode::Jump(_))
+    }
+
+    /// Current jump buffer and optional error message, for rendering the prompt.
+    pub fn jump_state(&self) -> Option<(&str, Option<&str>)> {
+        match &self.input_mode {
+            InputMode::Jump(prompt) => Some((prompt.buffer.as_str(), prompt.error.as_deref())),
+            InputMode::Normal => None,
+        }
+    }
+
+    /// Feed a raw key to the jump prompt. Returns `true` only on a quit request
+    /// (Ctrl-C); Esc cancels the prompt and Enter commits the jump.
+    pub fn handle_jump_key(&mut self, key: KeyEvent) -> Result<bool> {
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            return Ok(true);
+        }
+
+        match key.code {
+            KeyCode::Esc => self.input_mode = InputMode::Normal,
+            KeyCode::Enter => self.commit_jump()?,
+            KeyCode::Backspace => self.edit_jump(|buffer| {
+                buffer.pop();
+            }),
+            KeyCode::Char(c) if !c.is_control() => self.edit_jump(|buffer| buffer.push(c)),
+            _ => {}
+        }
+
+        Ok(false)
+    }
+
+    fn begin_jump(&mut self) {
+        self.playing = false;
+        self.playback_progress = 0.0;
+        self.input_mode = InputMode::Jump(JumpPrompt::default());
+    }
+
+    fn edit_jump(&mut self, edit: impl FnOnce(&mut String)) {
+        if let InputMode::Jump(prompt) = &mut self.input_mode {
+            edit(&mut prompt.buffer);
+            prompt.error = None;
+        }
+    }
+
+    fn commit_jump(&mut self) -> Result<()> {
+        let InputMode::Jump(prompt) = &self.input_mode else {
+            return Ok(());
+        };
+
+        let query = prompt.buffer.clone();
+        match resolve_jump(&query, &self.commits) {
+            Ok(index) => {
+                self.input_mode = InputMode::Normal;
+                self.move_to_from_input(index)?;
+            }
+            Err(message) => {
+                if let InputMode::Jump(prompt) = &mut self.input_mode {
+                    prompt.error = Some(message);
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn tick(&mut self, elapsed: Duration) -> Result<()> {
@@ -282,6 +367,45 @@ fn count_diff_lines(diff: &StructuredDiff) -> usize {
     diff.files.iter().map(|file| file.lines.len()).sum()
 }
 
+/// Resolve a jump query to a zero-based commit index.
+///
+/// A bare in-range number is treated as a 1-based timeline position. Anything
+/// else (including a numeric value outside the timeline) is matched as a
+/// case-insensitive commit-hash prefix.
+fn resolve_jump(query: &str, commits: &[CommitSummary]) -> std::result::Result<usize, String> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Err("enter a position or commit hash".to_owned());
+    }
+
+    if trimmed.chars().all(|c| c.is_ascii_digit()) {
+        if let Ok(position) = trimmed.parse::<usize>() {
+            if (1..=commits.len()).contains(&position) {
+                return Ok(position - 1);
+            }
+        }
+        // A numeric value outside the timeline falls through to hash matching so
+        // an all-decimal hash prefix can still be entered.
+    }
+
+    let needle = trimmed.to_ascii_lowercase();
+    let matches = commits
+        .iter()
+        .enumerate()
+        .filter(|(_, commit)| commit.hash.to_ascii_lowercase().starts_with(&needle))
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+
+    match matches.as_slice() {
+        [] => Err(format!("no commit or position matches '{trimmed}'")),
+        [index] => Ok(*index),
+        _ => Err(format!(
+            "'{trimmed}' is ambiguous ({} commits)",
+            matches.len()
+        )),
+    }
+}
+
 fn reaction_for_diff(diff: &StructuredDiff, prior_tiny_commit_streak: usize) -> (Reaction, usize) {
     let mut stats = ReactionStats {
         files_changed: diff.stats.files_changed,
@@ -311,10 +435,32 @@ fn reaction_for_diff(diff: &StructuredDiff, prior_tiny_commit_streak: usize) -> 
 mod tests {
     use std::fs;
 
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use git2::{Oid, Repository, Signature};
     use tempfile::TempDir;
 
     use super::*;
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    fn type_jump(app: &mut App, text: &str) {
+        for c in text.chars() {
+            app.handle_jump_key(key(KeyCode::Char(c)))
+                .expect("jump key");
+        }
+    }
+
+    fn three_commit_app(fixture: &Fixture) -> App {
+        fixture.write_file("story.txt", "one\n");
+        fixture.commit("first");
+        fixture.write_file("story.txt", "two\n");
+        fixture.commit("second");
+        fixture.write_file("story.txt", "three\n");
+        fixture.commit("third");
+        app_for_fixture(fixture, AnimationConfig::new(100.0, 1.0))
+    }
 
     struct Fixture {
         _tmp: TempDir,
@@ -456,5 +602,94 @@ mod tests {
 
         assert_eq!(app.position(), (3, 3));
         assert_eq!(app.pet_reaction, Reaction::Nodding);
+    }
+
+    #[test]
+    fn resolve_jump_matches_positions_then_hashes() {
+        let fixture = Fixture::new();
+        let app = three_commit_app(&fixture);
+
+        assert_eq!(resolve_jump("1", &app.commits), Ok(0));
+        assert_eq!(resolve_jump("  3 ", &app.commits), Ok(2));
+
+        let hash = app.commits[1].hash.clone();
+        assert_eq!(resolve_jump(&hash[..7], &app.commits), Ok(1));
+        assert_eq!(resolve_jump(&hash.to_uppercase(), &app.commits), Ok(1));
+
+        assert!(resolve_jump("", &app.commits).is_err());
+        assert!(resolve_jump("999", &app.commits).is_err());
+        assert!(resolve_jump("zzzz", &app.commits).is_err());
+    }
+
+    #[test]
+    fn jump_to_timeline_position_moves_selection() {
+        let fixture = Fixture::new();
+        let mut app = three_commit_app(&fixture);
+
+        app.apply_command(Command::BeginJump).expect("begin jump");
+        assert!(app.is_jumping());
+
+        type_jump(&mut app, "3");
+        app.handle_jump_key(key(KeyCode::Enter)).expect("enter");
+
+        assert!(!app.is_jumping());
+        assert_eq!(app.position(), (3, 3));
+    }
+
+    #[test]
+    fn jump_to_commit_hash_prefix_moves_selection() {
+        let fixture = Fixture::new();
+        let mut app = three_commit_app(&fixture);
+        let prefix = app.commits[1].hash[..6].to_owned();
+
+        app.apply_command(Command::BeginJump).expect("begin jump");
+        type_jump(&mut app, &prefix);
+        app.handle_jump_key(key(KeyCode::Enter)).expect("enter");
+
+        assert!(!app.is_jumping());
+        assert_eq!(app.position(), (2, 3));
+    }
+
+    #[test]
+    fn jump_keeps_prompt_open_on_invalid_query() {
+        let fixture = Fixture::new();
+        let mut app = three_commit_app(&fixture);
+
+        app.apply_command(Command::BeginJump).expect("begin jump");
+        type_jump(&mut app, "nope");
+        app.handle_jump_key(key(KeyCode::Enter)).expect("enter");
+
+        assert!(app.is_jumping());
+        assert!(app.jump_state().expect("prompt").1.is_some());
+        assert_eq!(app.position(), (1, 3));
+
+        app.handle_jump_key(key(KeyCode::Backspace))
+            .expect("backspace");
+        assert!(app.jump_state().expect("prompt").1.is_none());
+    }
+
+    #[test]
+    fn jump_escape_cancels_without_moving() {
+        let fixture = Fixture::new();
+        let mut app = three_commit_app(&fixture);
+
+        app.apply_command(Command::BeginJump).expect("begin jump");
+        type_jump(&mut app, "2");
+        app.handle_jump_key(key(KeyCode::Esc)).expect("escape");
+
+        assert!(!app.is_jumping());
+        assert_eq!(app.position(), (1, 3));
+    }
+
+    #[test]
+    fn begin_jump_stops_playback() {
+        let fixture = Fixture::new();
+        let mut app = three_commit_app(&fixture);
+
+        app.apply_command(Command::TogglePlayback).expect("play");
+        assert!(app.is_playing());
+
+        app.apply_command(Command::BeginJump).expect("begin jump");
+        assert!(!app.is_playing());
     }
 }
