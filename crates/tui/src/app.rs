@@ -51,6 +51,7 @@ impl App {
         diff_options: DiffOptions,
         animation_config: AnimationConfig,
         pet_scope: PetScope,
+        pet_mood_config: MoodConfig,
     ) -> Result<Self> {
         let repo = RepoHandle::discover(repo_path)?;
         let commits = repo.commit_summaries()?;
@@ -79,7 +80,7 @@ impl App {
             playing: false,
             playback_progress: 0.0,
             pet_scope,
-            pet_mood_config: MoodConfig::default(),
+            pet_mood_config,
             pet_state_files,
             repo_pet_state,
             global_pet_state,
@@ -373,6 +374,7 @@ mod tests {
             DiffOptions::default(),
             animation_config,
             PetScope::Repo,
+            MoodConfig::default(),
         )
         .expect("load app")
     }

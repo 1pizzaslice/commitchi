@@ -50,7 +50,8 @@ Commitchi is a terminal application that lets a user scrub through a Git reposit
 - State persists across sessions.
 - State updates live when a commit happens while the TUI is open.
 - Scope can be per-repo, global, or both displayed together.
-- Until TOML config lands, the TUI display scope is controlled by `--pet-scope`, defaulting to `repo`. Hook recording defaults to `both` so global aggregation has data when enabled.
+- The TUI display scope defaults to `repo` and can be changed with `commitchi.toml` or `--pet-scope`.
+- Hook recording and hook installation use the configured pet scope unless `--scope repo|global|both` is provided.
 
 ### Mode 3: The Merge
 
@@ -65,14 +66,13 @@ Commitchi is a terminal application that lets a user scrub through a Git reposit
 
 ## Configuration
 
-Initial config should live in a TOML file, likely `commitchi.toml`.
+Config lives in `commitchi.toml` at the repository root by default. Users can pass `--config <FILE>` to load another TOML file. CLI flags override config values.
 
-Candidate fields:
+Supported fields:
 
 ```toml
 [pet]
 scope = "repo" # repo | global | both
-position = "top-right"
 
 [pet.thresholds]
 thriving_hours = 24
@@ -87,7 +87,6 @@ commits_per_second = 1
 [git]
 large_diff_line_limit = 2000
 large_diff_file_limit = 100
-merge_strategy = "first-parent"
 ```
 
 ## UX Principles

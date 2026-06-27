@@ -1,6 +1,7 @@
 mod animation;
 mod app;
 mod bindings;
+mod config;
 mod events;
 mod hooks;
 mod ui;
@@ -10,13 +11,13 @@ use std::io;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use animation::AnimationConfig;
 use app::App;
 use bindings::command_for_key;
 use clap::{Args, Parser, Subcommand};
 use color_eyre::eyre::Result;
-use commitchi_core::{DiffOptions, RepoHandle};
+use commitchi_core::RepoHandle;
 use commitchi_pet::{now_seconds, repo_id_from_path, ActivityRecord, PetScope, PetStateFiles};
+use config::{ConfigOverrides, RuntimeConfig};
 use crossterm::event::{self, Event, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{
@@ -32,10 +33,30 @@ const RENDER_INTERVAL: Duration = Duration::from_millis(33);
 
 #[derive(Debug, Parser)]
 #[command(name = "commitchi")]
-#[command(about = "Replay local Git history in a terminal time machine")]
+#[command(version)]
+#[command(about = "Replay local Git history in an animated terminal time machine")]
+#[command(
+    long_about = "Commitchi replays local Git history as an animated terminal diff timeline and keeps a small persistent pet companion. It reads local Git metadata only, runs offline, and can install a Git post-commit hook for pet mood persistence."
+)]
+#[command(
+    after_help = "Config: Commitchi reads commitchi.toml from the repository root by default. Use --config <FILE> to choose another file. CLI flags override config values."
+)]
 struct Cli {
-    #[arg(long, global = true, value_name = "PATH")]
+    #[arg(
+        long,
+        global = true,
+        value_name = "PATH",
+        help = "Git repository path to open or update"
+    )]
     repo: Option<PathBuf>,
+
+    #[arg(
+        long,
+        global = true,
+        value_name = "FILE",
+        help = "Read settings from a TOML config file"
+    )]
+    config: Option<PathBuf>,
 
     #[command(flatten)]
     run: RunArgs,
@@ -46,52 +67,101 @@ struct Cli {
 
 #[derive(Debug, Args)]
 struct RunArgs {
-    #[arg(long, default_value_t = 2_000)]
-    large_diff_line_limit: usize,
+    #[arg(
+        long,
+        value_name = "LINES",
+        value_parser = parse_positive_usize,
+        help = "Maximum diff lines to load per commit"
+    )]
+    large_diff_line_limit: Option<usize>,
 
-    #[arg(long, default_value_t = 100)]
-    large_diff_file_limit: usize,
+    #[arg(
+        long,
+        value_name = "FILES",
+        value_parser = parse_positive_usize,
+        help = "Maximum changed files to load per commit"
+    )]
+    large_diff_file_limit: Option<usize>,
 
-    #[arg(long, default_value_t = 30.0, value_parser = parse_positive_f64)]
-    lines_per_second: f64,
+    #[arg(
+        long,
+        value_name = "LINES",
+        value_parser = parse_positive_f64,
+        help = "Diff reveal speed in lines per second"
+    )]
+    lines_per_second: Option<f64>,
 
-    #[arg(long, default_value_t = 1.0, value_parser = parse_positive_f64)]
-    commits_per_second: f64,
+    #[arg(
+        long,
+        value_name = "COMMITS",
+        value_parser = parse_positive_f64,
+        help = "Playback speed in commits per second"
+    )]
+    commits_per_second: Option<f64>,
 
-    #[arg(long, default_value_t = PetScope::Repo)]
-    pet_scope: PetScope,
+    #[arg(
+        long,
+        value_name = "SCOPE",
+        help = "Pet state display scope: repo, global, or both"
+    )]
+    pet_scope: Option<PetScope>,
 }
 
 #[derive(Debug, Subcommand)]
 enum CliCommand {
+    #[command(about = "Commands intended for Git hook integration")]
     Hook {
         #[command(subcommand)]
         command: HookCommand,
     },
+
+    #[command(about = "Install or update the managed Git post-commit hook")]
     InstallHook(InstallHookArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum HookCommand {
+    #[command(about = "Record the current HEAD commit in pet state")]
     PostCommit(HookPostCommitArgs),
 }
 
 #[derive(Debug, Args)]
 struct HookPostCommitArgs {
-    #[arg(long, default_value_t = PetScope::Both)]
-    scope: PetScope,
+    #[arg(
+        long,
+        value_name = "SCOPE",
+        help = "Pet state recording scope: repo, global, or both"
+    )]
+    scope: Option<PetScope>,
 }
 
 #[derive(Debug, Args)]
 struct InstallHookArgs {
-    #[arg(long, default_value_t = PetScope::Both)]
-    scope: PetScope,
+    #[arg(
+        long,
+        value_name = "SCOPE",
+        help = "Pet state recording scope written into the hook"
+    )]
+    scope: Option<PetScope>,
+}
+
+impl RunArgs {
+    fn overrides(&self) -> ConfigOverrides {
+        ConfigOverrides {
+            large_diff_line_limit: self.large_diff_line_limit,
+            large_diff_file_limit: self.large_diff_file_limit,
+            lines_per_second: self.lines_per_second,
+            commits_per_second: self.commits_per_second,
+            pet_scope: self.pet_scope,
+        }
+    }
 }
 
 fn main() -> Result<()> {
     color_eyre::install()?;
 
     let cli = Cli::parse();
+    let config_path = cli.config.clone();
     let repo_path = match cli.repo.clone() {
         Some(path) => path,
         None => std::env::current_dir()?,
@@ -100,29 +170,36 @@ fn main() -> Result<()> {
     match cli.command {
         Some(CliCommand::Hook {
             command: HookCommand::PostCommit(args),
-        }) => record_post_commit(repo_path, args.scope),
-        Some(CliCommand::InstallHook(args)) => install_hook(repo_path, args.scope),
-        None => run_tui(repo_path, cli.run),
+        }) => record_post_commit(repo_path, config_path, args.scope),
+        Some(CliCommand::InstallHook(args)) => install_hook(repo_path, config_path, args.scope),
+        None => run_tui(repo_path, config_path, cli.run),
     }
 }
 
-fn run_tui(repo_path: PathBuf, args: RunArgs) -> Result<()> {
+fn run_tui(repo_path: PathBuf, config_path: Option<PathBuf>, args: RunArgs) -> Result<()> {
+    let repo = RepoHandle::discover(&repo_path)?;
+    let mut config = RuntimeConfig::load(repo.root(), config_path.as_deref())?;
+    config.apply_overrides(args.overrides())?;
+
     let app = App::load(
         repo_path,
-        DiffOptions {
-            line_limit: args.large_diff_line_limit,
-            file_limit: args.large_diff_file_limit,
-            ..DiffOptions::default()
-        },
-        AnimationConfig::new(args.lines_per_second, args.commits_per_second),
-        args.pet_scope,
+        config.diff_options,
+        config.animation_config,
+        config.pet_scope,
+        config.mood_config,
     )?;
 
     run(app)
 }
 
-fn record_post_commit(repo_path: PathBuf, scope: PetScope) -> Result<()> {
+fn record_post_commit(
+    repo_path: PathBuf,
+    config_path: Option<PathBuf>,
+    scope: Option<PetScope>,
+) -> Result<()> {
     let repo = RepoHandle::discover(repo_path)?;
+    let config = RuntimeConfig::load(repo.root(), config_path.as_deref())?;
+    let scope = scope.unwrap_or(config.pet_scope);
     let commit = repo.head_commit_summary()?;
     let record = ActivityRecord::new(
         repo_id_from_path(repo.root()),
@@ -141,8 +218,14 @@ fn record_post_commit(repo_path: PathBuf, scope: PetScope) -> Result<()> {
     Ok(())
 }
 
-fn install_hook(repo_path: PathBuf, scope: PetScope) -> Result<()> {
+fn install_hook(
+    repo_path: PathBuf,
+    config_path: Option<PathBuf>,
+    scope: Option<PetScope>,
+) -> Result<()> {
     let repo = RepoHandle::discover(repo_path)?;
+    let config = RuntimeConfig::load(repo.root(), config_path.as_deref())?;
+    let scope = scope.unwrap_or(config.pet_scope);
     let hook_path = hooks::install_post_commit_hook(repo.git_dir(), scope)?;
 
     println!(
@@ -238,6 +321,18 @@ fn parse_positive_f64(value: &str) -> std::result::Result<f64, String> {
         .map_err(|err| format!("must be a number: {err}"))?;
 
     if parsed.is_finite() && parsed > 0.0 {
+        Ok(parsed)
+    } else {
+        Err("must be greater than 0".to_owned())
+    }
+}
+
+fn parse_positive_usize(value: &str) -> std::result::Result<usize, String> {
+    let parsed = value
+        .parse::<usize>()
+        .map_err(|err| format!("must be an integer: {err}"))?;
+
+    if parsed > 0 {
         Ok(parsed)
     } else {
         Err("must be greater than 0".to_owned())

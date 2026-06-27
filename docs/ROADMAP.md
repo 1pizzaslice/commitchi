@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Phase 4 is complete on `phase/4-the-merge`. The TUI now computes deterministic pet reactions from structured diff stats, renders reaction text/sprite overlays, and refreshes reactions as playback advances. Phase 5 is pending explicit approval.
+Phase 5 is complete on `phase/5-polish`. Commitchi now loads optional TOML config, has release-oriented help and README usage/install docs, and includes broader core fixture coverage for rename, binary, truncation, and merge behavior.
 
 ## Phase Checklist
 
@@ -157,7 +157,7 @@ Exit criteria passed:
 
 ### Phase 5: Polish
 
-Status: pending.
+Status: complete.
 
 Deliverables:
 
@@ -166,6 +166,25 @@ Deliverables:
 - More robust tests.
 - Cross-platform notes.
 - Release-oriented CLI help.
+
+Completed:
+
+- Added `commitchi.toml` loading from the repository root, with `--config <FILE>` override.
+- Added config support for pet scope, mood thresholds, animation speeds, and git diff limits.
+- Preserved explicit CLI flags as the highest-priority overrides over config.
+- Made `commitchi hook post-commit` and `commitchi install-hook` default to the configured pet scope unless `--scope` is passed.
+- Added validation for missing explicit config, invalid TOML, non-positive speeds/limits, and unordered mood thresholds.
+- Added README install, usage, config, pet state, hook, and cross-platform notes.
+- Strengthened top-level CLI help and subcommand descriptions.
+- Added core robustness tests for rename detection, binary diffs, file-list truncation, and first-parent merge diffs.
+
+Exit criteria passed:
+
+- `cargo fmt --all -- --check` passes.
+- `cargo clippy --workspace --all-targets -- -D warnings` passes.
+- `cargo test --workspace` passes.
+- `cargo run -p commitchi-tui -- --help` renders release-oriented help.
+- Running the TUI in this repo shows the pet panel/reaction overlay, animates diff lines, and exits cleanly with `q`.
 
 ## Branch Strategy
 

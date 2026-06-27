@@ -8,7 +8,7 @@ Goal: Rust TUI for animated Git history playback with a persistent pet companion
 
 ## Current State
 
-Phase 4 is complete on `phase/4-the-merge`.
+Phase 5 is complete on `phase/5-polish`.
 
 The Rust workspace exists with:
 
@@ -29,16 +29,7 @@ The project directory `/home/anish/CODE01/kuchbhi/commitchi` is a valid Git repo
 
 ## Recommended Next Step
 
-Stop at the Phase 4 boundary and ask for explicit approval before starting Phase 5.
-
-On Phase 5 approval:
-
-1. Add TOML config loading for pet, animation, and git limits.
-2. Add README install and usage instructions.
-3. Strengthen release-oriented CLI help and cross-platform notes.
-4. Add any remaining robustness tests called out by the harness.
-5. Run the dev harness commands.
-6. Update this handoff file and stop for final approval.
+Stop at the Phase 5 boundary and wait for final approval before merging back to `main` or doing any release/remote work.
 
 ## Remote Setup
 
@@ -139,6 +130,27 @@ Branch strategy:
 - The pet panel now renders a short reaction message and a reaction-specific face above the persisted mood/status lines.
 - Mood persistence, hook behavior, and state file format remain unchanged.
 
+## Phase 5 Implementation Notes
+
+- Phase 5 was implemented on `phase/5-polish`.
+- Added `toml` as a workspace dependency and `crates/tui/src/config.rs`.
+- Config discovery:
+  - Implicit config path is `commitchi.toml` in the discovered repo root.
+  - `--config <FILE>` loads an explicit config path.
+  - Missing implicit config falls back to built-in defaults.
+  - Missing explicit config, invalid TOML, invalid speeds/limits, and unordered mood thresholds are errors.
+- Runtime precedence is built-in defaults, then config values, then CLI overrides.
+- Supported TOML fields:
+  - `[pet] scope`
+  - `[pet.thresholds] thriving_hours`, `content_hours`, `neutral_hours`, `anxious_hours`
+  - `[animation] lines_per_second`, `commits_per_second`
+  - `[git] large_diff_line_limit`, `large_diff_file_limit`
+- `App::load` now accepts `MoodConfig`, so configured pet mood thresholds affect rendered pet status.
+- `commitchi hook post-commit` and `commitchi install-hook` now default their recording scope from config unless `--scope repo|global|both` is provided.
+- README now includes install, usage, config, pet state, hook, and cross-platform notes.
+- CLI help now includes version, config guidance, option descriptions, and subcommand descriptions.
+- Core fixture tests now cover rename detection, binary diffs, file-list truncation, and first-parent merge diffs.
+
 ## Last Verification
 
 Commands passed:
@@ -147,6 +159,7 @@ Commands passed:
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+cargo run -p commitchi-tui -- --help
 cargo run -p commitchi-tui -- --repo .
 ```
 
