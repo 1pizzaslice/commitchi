@@ -40,11 +40,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Installs the Rust target's std plus the C cross-toolchain libgit2 needs,
+      # and points cargo at it. This makes every target build the same way
+      # (the bare toolchain action left the musl std missing for x86_64).
+      - uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.target }}
 
-      # Builds the `commitchi` binary for the target (using cross for non-native
-      # targets), creates commitchi-<target>.tar.gz with a SHA-256 sum, and
-      # uploads everything to the GitHub Release for the pushed tag.
+      # Builds the `commitchi` binary for the target, creates
+      # commitchi-<target>.tar.gz with a SHA-256 sum, and uploads everything to
+      # the GitHub Release for the pushed tag.
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: commitchi
