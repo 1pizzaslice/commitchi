@@ -6,7 +6,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
 
-use crate::app::{App, PetStatus};
+use crate::app::{App, PetFrameState, PetStatus};
+use crate::sprite::{self, Expression};
 
 pub fn draw(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
@@ -91,7 +92,7 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
         render_files(frame, layout[0], app.diff());
         render_diff(frame, layout[1], app);
-        render_pet(frame, layout[2], &app.pet_status());
+        render_pet(frame, layout[2], &app.pet_status(), app.pet_animation());
     } else {
         let layout = Layout::default()
             .direction(Direction::Horizontal)
@@ -127,25 +128,31 @@ fn render_diff(frame: &mut Frame<'_>, area: Rect, app: &App) {
     frame.render_widget(paragraph, area);
 }
 
-fn render_pet(frame: &mut Frame<'_>, area: Rect, status: &PetStatus) {
+fn render_pet(frame: &mut Frame<'_>, area: Rect, status: &PetStatus, animation: PetFrameState) {
     let mood = primary_mood(status);
     let reaction = status.reaction;
-    let sprite_style = if reaction == Reaction::Calm {
-        mood_style(mood)
-    } else {
-        reaction_style(reaction)
-    };
-    let mut lines = vec![
-        Line::styled(reaction_message(reaction), reaction_style(reaction)),
-        Line::from(""),
-    ];
+    let expression = Expression::from_mood_reaction(mood, reaction);
 
-    lines.extend(
-        pet_sprite(mood, reaction)
-            .into_iter()
-            .map(|line| Line::styled(line, sprite_style)),
-    );
+    // A 1px breathing bob: half the time the sprite sits one row lower. The
+    // opposite spacer keeps the panel height steady so nothing below jumps.
+    let mut lines = Vec::new();
+    if animation.bob == 1 {
+        lines.push(Line::from(""));
+    }
+    lines.extend(centered_sprite(sprite::frame(
+        expression,
+        animation.blink,
+        animation.particle_phase,
+    )));
+    if animation.bob == 0 {
+        lines.push(Line::from(""));
+    }
 
+    lines.push(Line::from(""));
+    lines.push(Line::styled(
+        reaction_message(reaction),
+        reaction_style(reaction),
+    ));
     lines.push(Line::from(""));
     match status.scope {
         PetScope::Repo => {
@@ -270,27 +277,16 @@ fn activity_age(activity: &ActivityRecord) -> String {
     }
 }
 
-fn pet_sprite(mood: Mood, reaction: Reaction) -> Vec<&'static str> {
-    let face = match reaction {
-        Reaction::Calm => mood_face(mood),
-        Reaction::Nodding => "( -v- )",
-        Reaction::Excited => "( ^o^ )",
-        Reaction::Curious => "( ?.? )",
-        Reaction::Confused => "( @.@ )",
-        Reaction::Wincing => "( >_< )",
-    };
-
-    vec![" /\\_/\\", face, " /|_|\\", "  / \\"]
-}
-
-fn mood_face(mood: Mood) -> &'static str {
-    match mood {
-        Mood::Thriving => "( ^.^ )",
-        Mood::Content => "( o.o )",
-        Mood::Neutral => "( -.- )",
-        Mood::Anxious => "( o_o )",
-        Mood::Sulking => "( v_v )",
-    }
+/// Nudge the sprite one column right so it reads as centered in the pet panel.
+fn centered_sprite(lines: Vec<Line<'static>>) -> Vec<Line<'static>> {
+    lines
+        .into_iter()
+        .map(|line| {
+            let mut spans = vec![Span::raw(" ")];
+            spans.extend(line.spans);
+            Line::from(spans)
+        })
+        .collect()
 }
 
 fn reaction_message(reaction: Reaction) -> &'static str {
@@ -487,8 +483,15 @@ mod tests {
     }
 
     #[test]
-    fn reaction_overlay_changes_sprite_face() {
-        assert!(pet_sprite(Mood::Neutral, Reaction::Excited).contains(&"( ^o^ )"));
+    fn reaction_message_describes_reaction() {
+        assert_eq!(reaction_message(Reaction::Excited), "large addition");
         assert_eq!(reaction_message(Reaction::Wincing), "large deletion");
+    }
+
+    #[test]
+    fn centered_sprite_indents_each_line() {
+        let lines = centered_sprite(vec![Line::from("ab"), Line::from("cd")]);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].spans[0].content, " ");
     }
 }

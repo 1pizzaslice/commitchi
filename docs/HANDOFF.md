@@ -169,6 +169,31 @@ Branch strategy:
 - `crates/tui/src/ui.rs` renders the prompt (`jump> ...`) and an error/help line in
   the timeline footer, and adds a `g/:: goto` hint.
 
+## Post-Phase-5 Follow-up: Pixel-Art Pet
+
+- Replaced the parenthesis/hyphen ASCII pet with an animated pixel-art sprite.
+- `crates/tui/src/sprite.rs` renders an 18x24 creature with truecolor half-block
+  characters (`▀`/`▄`): each cell packs two vertical pixels as glyph fg/bg.
+  Transparent pixels fall back to the terminal background.
+- The body is authored once as a character grid (`BODY`) with a palette legend;
+  expressions only repaint the eye/mouth/blush region, and emotion particles are
+  drawn one row above the head.
+- `Expression::from_mood_reaction` maps the pet's mood plus current reaction to
+  nine faces. Reactions take priority; mood shows through when the reaction is
+  `Calm`. `sleepy` exists but is not yet wired into the live mapping.
+- `crates/tui/src/app.rs` adds a free-running pet clock (`pet_elapsed`) advanced
+  by `tick`, exposed via `pet_animation()` -> `PetFrameState` (blink every
+  ~3.4s, a breathing bob, a cycling particle phase). No new threads.
+- `crates/tui/src/ui.rs` renders the sprite in the pet panel, centered, with the
+  breathing bob and the reaction message/status lines below it.
+- The original creature art is hand-authored (not a copied sprite) in a warm
+  orange/cream palette. It was prototyped procedurally, then baked into `BODY`.
+- `commitchi pet-demo` is a hidden subcommand that prints every expression
+  (idle, particle-shifted, and blink frames) to stdout for previewing.
+- The pet needs a truecolor terminal; the rest of the TUI degrades to default
+  colors. A render smoke test (`renders_pet_panel_without_panicking`) draws the
+  full UI through `TestBackend` at wide and narrow sizes.
+
 ## Last Verification
 
 Commands passed:

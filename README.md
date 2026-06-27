@@ -1,6 +1,8 @@
 # Commitchi
 
-Commitchi is a Rust TUI for replaying a local Git repository's history like a time machine, with an ASCII companion whose mood reflects commit activity and whose reactions respond to the diff currently on screen.
+Commitchi is a Rust TUI for replaying a local Git repository's history like a time machine, with an animated pixel-art companion whose mood reflects commit activity and whose expression responds to the diff currently on screen.
+
+The pet is drawn with truecolor half-block characters, so it looks best in a terminal with 24-bit color support (`COLORTERM=truecolor`). It blinks, breathes, and shows emotion particles on its own, and changes expression as you navigate history.
 
 Commitchi reads only local Git metadata. It has no GitHub, remote, or network integration.
 
@@ -84,6 +86,23 @@ Equivalent startup overrides:
 
 ```sh
 commitchi --lines-per-second 60 --commits-per-second 2 --pet-scope both
+```
+
+## Pet Expressions
+
+The pet's face is chosen from two layers:
+
+- A **reaction** to the commit currently on screen, derived from its diff stats:
+  excited (large additions), wincing (large deletions), curious (rename runs),
+  confused (binary-only or truncated diffs), and happy (a run of tiny commits).
+- When the diff is unremarkable, the face falls back to the persisted **mood**,
+  which reflects how recently and consistently you commit and decays over time:
+  happy, neutral, anxious, or sad.
+
+Preview every expression without opening a repository:
+
+```sh
+commitchi pet-demo
 ```
 
 ## Pet State
