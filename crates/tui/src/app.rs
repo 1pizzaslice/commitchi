@@ -1,10 +1,25 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use commitchi_core::{CommitSummary, DiffOptions, Error, RepoHandle, StructuredDiff};
+use commitchi_core::{CommitSummary, DiffOptions, Error as CoreError, RepoHandle, StructuredDiff};
+use commitchi_pet::{
+    now_seconds, ActivityRecord, Mood, MoodConfig, PetScope, PetState, PetStateFiles,
+};
+use thiserror::Error;
 
 use crate::animation::{AnimationConfig, DiffAnimation};
 use crate::bindings::Command;
+
+pub type Result<T> = std::result::Result<T, AppError>;
+
+#[derive(Debug, Error)]
+pub enum AppError {
+    #[error(transparent)]
+    Core(#[from] CoreError),
+
+    #[error(transparent)]
+    Pet(#[from] commitchi_pet::Error),
+}
 
 #[derive(Debug)]
 pub struct App {
@@ -18,6 +33,11 @@ pub struct App {
     diff_animation: DiffAnimation,
     playing: bool,
     playback_progress: f64,
+    pet_scope: PetScope,
+    pet_mood_config: MoodConfig,
+    pet_state_files: PetStateFiles,
+    repo_pet_state: PetState,
+    global_pet_state: PetState,
 }
 
 impl App {
@@ -25,16 +45,21 @@ impl App {
         repo_path: impl AsRef<Path>,
         diff_options: DiffOptions,
         animation_config: AnimationConfig,
-    ) -> Result<Self, Error> {
+        pet_scope: PetScope,
+    ) -> Result<Self> {
         let repo = RepoHandle::discover(repo_path)?;
         let commits = repo.commit_summaries()?;
         if commits.is_empty() {
-            return Err(Error::EmptyRepository);
+            return Err(CoreError::EmptyRepository.into());
         }
 
         let selected = 0;
         let diff = repo.diff_for_commit(&commits[selected].hash, diff_options)?;
         let diff_animation = DiffAnimation::new(count_diff_lines(&diff));
+        let pet_state_files = PetStateFiles::for_git_dir(repo.git_dir(), pet_scope)?;
+        let _ = pet_state_files.ensure_parent_dirs();
+        let repo_pet_state = pet_state_files.load_repo_or_default()?;
+        let global_pet_state = pet_state_files.load_global_or_default()?;
 
         Ok(Self {
             repo,
@@ -47,10 +72,15 @@ impl App {
             diff_animation,
             playing: false,
             playback_progress: 0.0,
+            pet_scope,
+            pet_mood_config: MoodConfig::default(),
+            pet_state_files,
+            repo_pet_state,
+            global_pet_state,
         })
     }
 
-    pub fn apply_command(&mut self, command: Command) -> Result<bool, Error> {
+    pub fn apply_command(&mut self, command: Command) -> Result<bool> {
         match command {
             Command::Quit => return Ok(true),
             Command::PreviousCommit => self.move_by_from_input(-1)?,
@@ -81,10 +111,16 @@ impl App {
         Ok(false)
     }
 
-    pub fn tick(&mut self, elapsed: Duration) -> Result<(), Error> {
+    pub fn tick(&mut self, elapsed: Duration) -> Result<()> {
         self.advance_playback(elapsed)?;
         self.diff_animation
             .advance(elapsed, self.animation_config.lines_per_second());
+        Ok(())
+    }
+
+    pub fn reload_pet_state(&mut self) -> Result<()> {
+        self.repo_pet_state = self.pet_state_files.load_repo_or_default()?;
+        self.global_pet_state = self.pet_state_files.load_global_or_default()?;
         Ok(())
     }
 
@@ -123,7 +159,28 @@ impl App {
         self.repo.root()
     }
 
-    fn advance_playback(&mut self, elapsed: Duration) -> Result<(), Error> {
+    pub fn pet_status(&self) -> PetStatus {
+        let now = now_seconds();
+        PetStatus {
+            scope: self.pet_scope,
+            repo_mood: self
+                .pet_scope
+                .includes_repo()
+                .then(|| self.repo_pet_state.mood_at(now, self.pet_mood_config)),
+            global_mood: self
+                .pet_scope
+                .includes_global()
+                .then(|| self.global_pet_state.mood_at(now, self.pet_mood_config)),
+            repo_last_activity: self.repo_pet_state.last_activity().cloned(),
+            global_last_activity: self.global_pet_state.last_activity().cloned(),
+        }
+    }
+
+    pub fn pet_watch_paths(&self) -> Vec<PathBuf> {
+        self.pet_state_files.watch_paths()
+    }
+
+    fn advance_playback(&mut self, elapsed: Duration) -> Result<()> {
         if !self.playing {
             return Ok(());
         }
@@ -156,24 +213,24 @@ impl App {
         Ok(())
     }
 
-    fn move_by_from_input(&mut self, delta: isize) -> Result<(), Error> {
+    fn move_by_from_input(&mut self, delta: isize) -> Result<()> {
         self.playback_progress = 0.0;
         self.move_by(delta)
     }
 
-    fn move_to_from_input(&mut self, next: usize) -> Result<(), Error> {
+    fn move_to_from_input(&mut self, next: usize) -> Result<()> {
         self.playback_progress = 0.0;
         self.move_to(next)
     }
 
-    fn move_by(&mut self, delta: isize) -> Result<(), Error> {
+    fn move_by(&mut self, delta: isize) -> Result<()> {
         let selected = self.selected as isize;
         let max = self.commits.len().saturating_sub(1) as isize;
         let next = selected.saturating_add(delta).clamp(0, max) as usize;
         self.move_to(next)
     }
 
-    fn move_to(&mut self, next: usize) -> Result<(), Error> {
+    fn move_to(&mut self, next: usize) -> Result<()> {
         if next == self.selected {
             return Ok(());
         }
@@ -186,6 +243,15 @@ impl App {
         self.diff_animation.reset(count_diff_lines(&self.diff));
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetStatus {
+    pub scope: PetScope,
+    pub repo_mood: Option<Mood>,
+    pub global_mood: Option<Mood>,
+    pub repo_last_activity: Option<ActivityRecord>,
+    pub global_last_activity: Option<ActivityRecord>,
 }
 
 fn count_diff_lines(diff: &StructuredDiff) -> usize {
@@ -254,7 +320,13 @@ mod tests {
     }
 
     fn app_for_fixture(fixture: &Fixture, animation_config: AnimationConfig) -> App {
-        App::load(fixture.path(), DiffOptions::default(), animation_config).expect("load app")
+        App::load(
+            fixture.path(),
+            DiffOptions::default(),
+            animation_config,
+            PetScope::Repo,
+        )
+        .expect("load app")
     }
 
     #[test]

@@ -186,6 +186,8 @@ commitchi hook post-commit
 
 The Rust command records the commit in repo-local state and optionally global state depending on config.
 
+Phase 3 implementation note: TOML config is still deferred, so hook recording defaults to `both` and the TUI display scope is selected with `--pet-scope` (`repo`, `global`, or `both`). Repo-local state is written under `Repository::path()/commitchi/state.json`; global state uses `COMMITCHI_DATA_DIR/state.json`, `XDG_DATA_HOME/commitchi/state.json`, or the platform app-data fallback.
+
 ## Hook Strategy
 
 Use a `post-commit` hook for MVP. It is simple, has the right semantics, and avoids a long-running daemon.
@@ -196,6 +198,8 @@ Use a `post-commit` hook for MVP. It is simple, has the right semantics, and avo
 - Create or update `.git/hooks/post-commit`.
 - Preserve existing hook content by chaining where possible or writing a clear managed block.
 - Make the hook executable on Unix.
+
+Phase 3 implementation note: hook installation appends or replaces a `# commitchi hook begin` / `# commitchi hook end` block and leaves unrelated hook content intact.
 
 ## Large Repos
 
@@ -235,3 +239,13 @@ Future strategy:
 - TOML config loading is still reserved for Phase 5.
 - `crates/tui/src/events.rs` provides the current input/tick/render event scheduler.
 - Pet UI, persistence, hooks, config files, and file watching remain out of scope until later phases.
+
+## Phase 3 Implementation Notes
+
+- `commitchi-pet` owns `PetScope`, `Mood`, `MoodConfig`, `ActivityRecord`, JSON `PetState`, `StateFile`, and `PetStateFiles`.
+- Mood is computed from wall-clock recency using the PRD threshold defaults, with recent consistency softening neutral/anxious decay.
+- `commitchi hook post-commit` discovers the repo, records HEAD into the selected state scope, and writes pretty JSON state.
+- `commitchi install-hook` writes a managed post-commit block that invokes `commitchi hook post-commit --scope <scope>`.
+- `commitchi-tui` watches active pet state file directories with `notify` and reloads state on change. TUI startup treats watch-directory creation as best-effort so read-only Git metadata does not block history playback.
+- The pet panel renders at normal 80-column width and is hidden only on narrower layouts where diff readability would collapse.
+- Phase 3 does not wire structured diff stats into pet reactions; that remains Phase 4.

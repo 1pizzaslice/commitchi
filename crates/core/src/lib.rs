@@ -58,6 +58,23 @@ impl RepoHandle {
         &self.root
     }
 
+    pub fn git_dir(&self) -> &Path {
+        self.repo.path()
+    }
+
+    pub fn head_commit_summary(&self) -> Result<CommitSummary> {
+        let head = self.repo.head().map_err(|err| {
+            if is_empty_head(&err) {
+                Error::EmptyRepository
+            } else {
+                Error::Git(err)
+            }
+        })?;
+        let commit = head.peel_to_commit()?;
+
+        Ok(CommitSummary::from_commit(&commit))
+    }
+
     pub fn commit_summaries(&self) -> Result<Vec<CommitSummary>> {
         self.commit_page(0, usize::MAX).map(|page| page.commits)
     }
