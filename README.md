@@ -1,30 +1,90 @@
-# Commitchi
+# Commitchi 🐾
 
-Commitchi is a Rust TUI for replaying a local Git repository's history like a time machine, with an animated pixel-art companion whose mood reflects commit activity and whose expression responds to the diff currently on screen.
+**Replay your Git history like a movie — with a pixel-art pet that reacts to every commit.**
 
-The pet is drawn with truecolor half-block characters, so it looks best in a terminal with 24-bit color support (`COLORTERM=truecolor`). It blinks, breathes, and shows emotion particles on its own, and changes expression as you navigate history.
+Commitchi is a terminal app that scrubs through a repository's history, animating
+each diff instead of dumping static `git log -p` output. Alongside it lives a
+small pixel companion whose mood reflects how you've been committing and whose
+expression reacts to the diff currently on screen — excited at big additions,
+wincing at big deletions, sleepy when the repo's been quiet.
 
-Commitchi reads only local Git metadata. It has no GitHub, remote, or network integration.
+It reads **only local Git metadata**. No network, no GitHub, no telemetry.
 
-## Install
+---
 
-Requirements:
+## Install (Linux)
 
-- Rust 1.87 or newer.
-- A terminal with alternate-screen support.
-- A local Git repository with at least one commit.
-
-Install the current workspace build:
-
-```sh
-cargo install --path crates/tui
-```
-
-Or run without installing:
+One command — no Rust toolchain required:
 
 ```sh
-cargo run -p commitchi-tui -- --repo .
+curl -fsSL https://raw.githubusercontent.com/1pizzaslice/commitchi/main/install.sh | sh
 ```
+
+This downloads a prebuilt static binary from the latest
+[GitHub Release](https://github.com/1pizzaslice/commitchi/releases) and installs
+it to `~/.local/bin/commitchi`.
+
+- Install somewhere else: `curl -fsSL …/install.sh | PREFIX=/usr/local/bin sh`
+  (use `sudo sh` if that directory needs root).
+- Pin a version: `curl -fsSL …/install.sh | VERSION=v0.1.0 sh`
+
+Supported: `x86_64` and `aarch64` Linux. The binary is statically linked, so it
+runs across distributions without extra system libraries.
+
+> Prefer to build it yourself? See [From source](#from-source) below.
+
+After installing, open any Git repository and run:
+
+```sh
+commitchi
+```
+
+---
+
+## Prerequisites
+
+Commitchi draws its pet as real pixel art using colored half-block characters.
+For it to look right (and not show up as stray boxes or wrong colors), your
+terminal needs two things:
+
+1. **True color (24-bit) support.** The pet's colors are RGB. Most modern
+   terminal emulators support this — kitty, Alacritty, WezTerm, foot, Konsole,
+   GNOME Terminal, recent Windows Terminal. Check yours:
+
+   ```sh
+   echo "$COLORTERM"   # should print: truecolor (or 24bit)
+   ```
+
+   If it's empty, your terminal may still support it — try Commitchi and see. If
+   colors look banded or wrong, set `COLORTERM=truecolor` in your shell config,
+   or switch to one of the terminals above.
+
+2. **A UTF-8 locale and a font with block/box-drawing glyphs.** The pet and the
+   diff borders use characters like `▀ ▄ █ ─ │`. Virtually every modern
+   monospace font includes these (DejaVu Sans Mono, JetBrains Mono, Fira Code,
+   any Nerd Font). Make sure your locale is UTF-8:
+
+   ```sh
+   echo "$LANG"        # e.g. en_US.UTF-8
+   ```
+
+You also need:
+
+- A graphical terminal emulator (the bare Linux TTY console can't show true
+  color — use any terminal app inside your desktop).
+- A Git repository with at least one commit.
+
+Preview every pet expression without opening a repo (a quick way to confirm your
+terminal renders it correctly):
+
+```sh
+commitchi pet-demo
+```
+
+If you see a cute orange creature with distinct faces, you're all set. If you see
+boxes or odd symbols, revisit the font/locale notes above.
+
+---
 
 ## Usage
 
@@ -34,34 +94,63 @@ Open the current repository:
 commitchi
 ```
 
-Open another repository:
+Open a different one:
 
 ```sh
 commitchi --repo /path/to/repo
 ```
 
-Inside the TUI:
+### Controls
 
-- `h`/Left and `l`/Right navigate commits.
-- `j`/PageDown and `k`/PageUp jump through the timeline.
-- Home/End jump to first/last commit.
-- `g` or `:` open a jump prompt to go to a timeline position or commit hash.
-- Up/Down scroll the diff pane.
-- Space toggles play/pause.
-- `+`/`=` and `-` adjust commit playback speed.
-- `]` and `[` adjust line reveal speed.
-- `q`, Esc, or Ctrl-C exits.
+| Keys | Action |
+|---|---|
+| `h` / `←` and `l` / `→` | Previous / next commit |
+| `j` / `PgDn` and `k` / `PgUp` | Jump through the timeline |
+| `Home` / `End` | First / last commit |
+| `g` or `:` | Jump to a timeline position or commit hash |
+| `↑` / `↓` | Scroll the diff |
+| `Space` | Play / pause auto-playback |
+| `+` / `-` | Commit playback speed |
+| `]` / `[` | Diff reveal (typing) speed |
+| `q` / `Esc` / `Ctrl-C` | Quit |
 
-In the jump prompt, type a 1-based timeline position (for example `42`) or a
-commit-hash prefix (for example `a1b2c3`), then press Enter to jump or Esc to
-cancel. A bare in-range number is treated as a position; anything else is
-matched as a case-insensitive hash prefix.
+At the jump prompt (`g` / `:`), type a 1-based timeline position (e.g. `42`) or a
+commit-hash prefix (e.g. `a1b2c3`), then `Enter` to go or `Esc` to cancel.
 
-## Config
+---
 
-Commitchi reads `commitchi.toml` from the repository root by default. Use `--config <FILE>` to choose another config file. CLI flags override config values.
+## The pet
 
-Example:
+The pet's face is chosen from two layers:
+
+- A **reaction** to the commit on screen, from its diff stats: excited (large
+  additions), wincing (large deletions), curious (rename runs), confused
+  (binary-only or truncated diffs), happy (a run of tiny commits).
+- When the diff is unremarkable, the face falls back to its persisted **mood**,
+  which reflects how recently and consistently you commit and decays over time:
+  happy → neutral → anxious → sad.
+
+It blinks, breathes, and shows little emotion particles on its own.
+
+### Keep its mood up to date
+
+The pet's mood is recorded when you commit. Install a managed Git `post-commit`
+hook so it updates automatically:
+
+```sh
+commitchi install-hook
+```
+
+Mood is stored per repository under `.git/commitchi/state.json`, and optionally
+globally across all your repos. See [Pet state & hooks](docs/PRD.md) for the full
+details, scopes, and platform paths.
+
+---
+
+## Configure
+
+Commitchi reads an optional `commitchi.toml` from the repository root (override
+with `--config <FILE>`). CLI flags always win over config.
 
 ```toml
 [pet]
@@ -82,77 +171,52 @@ large_diff_line_limit = 2000
 large_diff_file_limit = 100
 ```
 
-Equivalent startup overrides:
+Equivalent one-off overrides:
 
 ```sh
 commitchi --lines-per-second 60 --commits-per-second 2 --pet-scope both
 ```
 
-## Pet Expressions
+See `commitchi --help` for every flag.
 
-The pet's face is chosen from two layers:
+---
 
-- A **reaction** to the commit currently on screen, derived from its diff stats:
-  excited (large additions), wincing (large deletions), curious (rename runs),
-  confused (binary-only or truncated diffs), and happy (a run of tiny commits).
-- When the diff is unremarkable, the face falls back to the persisted **mood**,
-  which reflects how recently and consistently you commit and decays over time:
-  happy, neutral, anxious, or sad.
+## From source
 
-Preview every expression without opening a repository:
+Requires Rust 1.87+ and a C toolchain (`git2` builds a vendored `libgit2`).
 
 ```sh
-commitchi pet-demo
+# install straight from the repo
+cargo install --git https://github.com/1pizzaslice/commitchi commitchi-tui
+
+# or clone and build
+git clone https://github.com/1pizzaslice/commitchi
+cd commitchi
+cargo run -p commitchi-tui -- --repo .
 ```
 
-## Pet State
+---
 
-Repo-local pet state is stored under `.git/commitchi/state.json`. Global pet state uses `COMMITCHI_DATA_DIR/state.json` when set, then platform app-data defaults such as:
-
-- Linux: `$XDG_DATA_HOME/commitchi/state.json` or `~/.local/share/commitchi/state.json`.
-- macOS: `~/Library/Application Support/commitchi/state.json`.
-- Windows: `%APPDATA%\commitchi\state.json`.
-
-Record the current HEAD commit in pet state:
+## Uninstall
 
 ```sh
-commitchi hook post-commit
+rm ~/.local/bin/commitchi              # or wherever you installed it
+rm -rf .git/commitchi                  # per-repo pet state (optional)
 ```
 
-Install a managed Git `post-commit` hook:
+To remove the managed Git hook, delete the `# commitchi hook` block from
+`.git/hooks/post-commit`.
 
-```sh
-commitchi install-hook
-```
+---
 
-Hook commands use `[pet].scope` from config unless `--scope repo|global|both` is provided:
+## License
 
-```sh
-commitchi install-hook --scope both
-```
+Dual-licensed under either [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at
+your option.
 
-On Unix-like systems Commitchi marks the hook executable. On Windows, Git still executes hooks through its shell environment, so `commitchi` must be on `PATH` for the hook to record activity.
-
-## CLI Help
-
-Show top-level help:
-
-```sh
-commitchi --help
-```
-
-## Check
-
-```sh
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-```
-
-Start here:
+## Project docs
 
 - [Product requirements](docs/PRD.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
-- [Development harness](docs/DEV_HARNESS.md)
-- [Handoff](docs/HANDOFF.md)
+- [Handoff notes](docs/HANDOFF.md)
