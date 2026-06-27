@@ -186,7 +186,7 @@ commitchi hook post-commit
 
 The Rust command records the commit in repo-local state and optionally global state depending on config.
 
-Phase 3 implementation note: TOML config is still deferred, so hook recording defaults to `both` and the TUI display scope is selected with `--pet-scope` (`repo`, `global`, or `both`). Repo-local state is written under `Repository::path()/commitchi/state.json`; global state uses `COMMITCHI_DATA_DIR/state.json`, `XDG_DATA_HOME/commitchi/state.json`, or the platform app-data fallback.
+Phase 5 implementation note: hook recording and hook installation use `[pet].scope` from config unless `--scope repo|global|both` is provided. The TUI display scope uses config unless `--pet-scope` is provided. Repo-local state is written under `Repository::path()/commitchi/state.json`; global state uses `COMMITCHI_DATA_DIR/state.json`, `XDG_DATA_HOME/commitchi/state.json`, or the platform app-data fallback.
 
 ## Hook Strategy
 
@@ -263,3 +263,16 @@ Future strategy:
 - `commitchi-tui` maps `StructuredDiff` into `ReactionStats`, including file status counts and binary/truncated flags.
 - The tiny-commit streak is intentionally app-local and playback-local; it is not persisted to pet state.
 - The pet panel renders a short reaction message and reaction-specific face while leaving persisted mood scope/status behavior unchanged.
+
+## Phase 5 Implementation Notes
+
+- `crates/tui/src/config.rs` owns TOML loading and validation.
+- Config discovery looks for `commitchi.toml` in the discovered repository root unless `--config <FILE>` is provided.
+- Missing implicit config falls back to built-in defaults. Missing explicit config, invalid TOML, invalid speeds, invalid limits, or unordered mood thresholds are errors.
+- Runtime precedence is built-in defaults, then config file values, then CLI overrides.
+- Supported config areas:
+  - `[pet] scope`
+  - `[pet.thresholds] thriving_hours`, `content_hours`, `neutral_hours`, `anxious_hours`
+  - `[animation] lines_per_second`, `commits_per_second`
+  - `[git] large_diff_line_limit`, `large_diff_file_limit`
+- `commitchi hook post-commit` and `commitchi install-hook` resolve their default recording scope from config; their `--scope` flag remains the explicit override.

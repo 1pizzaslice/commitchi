@@ -18,7 +18,9 @@ commitchi-pet = { path = "../pet" }
 crossterm.workspace = true
 notify.workspace = true
 ratatui.workspace = true
+serde.workspace = true
 thiserror.workspace = true
+toml.workspace = true
 
 [dev-dependencies]
 git2.workspace = true
