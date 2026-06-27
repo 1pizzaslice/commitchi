@@ -2,8 +2,8 @@ name: Release
 
 # Cut a release by pushing a version tag, e.g.:
 #   git tag v0.1.0 && git push origin v0.1.0
-# This builds static Linux binaries and attaches them (plus SHA-256 sums) to a
-# GitHub Release for that tag. The install.sh script downloads these artifacts.
+# This creates a GitHub Release for the tag, builds static Linux binaries, and
+# attaches them (plus SHA-256 sums). The install.sh script downloads these.
 
 on:
   push:
@@ -14,7 +14,22 @@ permissions:
   contents: write
 
 jobs:
-  build-release:
+  # The upload step below attaches assets to an existing Release, so create it
+  # first (idempotent, so re-runs are safe).
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1 \
+            || gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+                 --title "${GITHUB_REF_NAME}" --generate-notes --verify-tag
+
+  upload-assets:
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
