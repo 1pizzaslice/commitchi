@@ -4,6 +4,7 @@ mod bindings;
 mod config;
 mod events;
 mod hooks;
+mod sprite;
 mod ui;
 mod watch;
 
@@ -117,6 +118,12 @@ enum CliCommand {
 
     #[command(about = "Install or update the managed Git post-commit hook")]
     InstallHook(InstallHookArgs),
+
+    #[command(
+        hide = true,
+        about = "Print every pet expression to stdout for previewing"
+    )]
+    PetDemo,
 }
 
 #[derive(Debug, Subcommand)]
@@ -172,7 +179,34 @@ fn main() -> Result<()> {
             command: HookCommand::PostCommit(args),
         }) => record_post_commit(repo_path, config_path, args.scope),
         Some(CliCommand::InstallHook(args)) => install_hook(repo_path, config_path, args.scope),
+        Some(CliCommand::PetDemo) => {
+            print_pet_demo();
+            Ok(())
+        }
         None => run_tui(repo_path, config_path, cli.run),
+    }
+}
+
+fn print_pet_demo() {
+    println!("commitchi pet expressions (phase 0 and 1, with a blink frame):\n");
+    for (label, expr) in sprite::PREVIEW_EXPRESSIONS {
+        println!("  {label}");
+        let frames = [
+            sprite::preview_lines(expr, false, 0),
+            sprite::preview_lines(expr, false, 1),
+            sprite::preview_lines(expr, true, 0),
+        ];
+        let height = frames.iter().map(Vec::len).max().unwrap_or(0);
+        for row in 0..height {
+            let mut line = String::from("    ");
+            for frame in &frames {
+                let cell = frame.get(row).cloned().unwrap_or_default();
+                line.push_str(&cell);
+                line.push_str("   ");
+            }
+            println!("{line}");
+        }
+        println!();
     }
 }
 

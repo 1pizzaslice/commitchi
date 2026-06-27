@@ -45,6 +45,16 @@ pub struct App {
     pet_reaction: Reaction,
     tiny_commit_streak: usize,
     input_mode: InputMode,
+    pet_elapsed: Duration,
+}
+
+/// Frame-timing state for the animated pet sprite, derived from a free-running
+/// clock so the creature blinks, breathes, and cycles particles on its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetFrameState {
+    pub blink: bool,
+    pub particle_phase: usize,
+    pub bob: usize,
 }
 
 /// Active text-entry mode layered over the normal keybindings.
@@ -103,6 +113,7 @@ impl App {
             pet_reaction,
             tiny_commit_streak,
             input_mode: InputMode::Normal,
+            pet_elapsed: Duration::ZERO,
         })
     }
 
@@ -206,10 +217,23 @@ impl App {
     }
 
     pub fn tick(&mut self, elapsed: Duration) -> Result<()> {
+        self.pet_elapsed = self.pet_elapsed.saturating_add(elapsed);
         self.advance_playback(elapsed)?;
         self.diff_animation
             .advance(elapsed, self.animation_config.lines_per_second());
         Ok(())
+    }
+
+    /// Current pet animation frame derived from the free-running clock: a short
+    /// blink every few seconds, a slow breathing bob, and a cycling particle
+    /// phase.
+    pub fn pet_animation(&self) -> PetFrameState {
+        let ms = self.pet_elapsed.as_millis();
+        PetFrameState {
+            blink: ms % 3_400 < 150,
+            particle_phase: (ms / 400) as usize,
+            bob: ((ms / 700) % 2) as usize,
+        }
     }
 
     pub fn reload_pet_state(&mut self) -> Result<()> {
@@ -691,5 +715,29 @@ mod tests {
 
         app.apply_command(Command::BeginJump).expect("begin jump");
         assert!(!app.is_playing());
+    }
+
+    #[test]
+    fn renders_pet_panel_without_panicking() {
+        use ratatui::backend::TestBackend;
+        use ratatui::Terminal;
+
+        let fixture = Fixture::new();
+        let mut app = three_commit_app(&fixture);
+
+        // Wide layout shows the animated pet; render across a few animation
+        // phases so the blink, bob, and particle branches all execute.
+        let mut wide = Terminal::new(TestBackend::new(96, 32)).expect("wide terminal");
+        for _ in 0..4 {
+            wide.draw(|frame| crate::ui::draw(frame, &app))
+                .expect("draw");
+            app.tick(Duration::from_millis(850)).expect("tick");
+        }
+
+        // Narrow layout hides the pet entirely and must still render.
+        let mut narrow = Terminal::new(TestBackend::new(60, 20)).expect("narrow terminal");
+        narrow
+            .draw(|frame| crate::ui::draw(frame, &app))
+            .expect("draw narrow");
     }
 }

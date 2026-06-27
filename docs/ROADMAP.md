@@ -6,6 +6,8 @@ Phase 5 is complete and merged to `main`. Commitchi now loads optional TOML conf
 
 A follow-up closed the remaining PRD navigation gap: the TUI now has an interactive jump prompt (`g` or `:`) to go to a timeline position or commit-hash prefix. See the Mode 1 "jump to commit hash or timeline position" requirement in the PRD.
 
+A second follow-up replaced the ASCII pet face with an animated pixel-art sprite rendered via truecolor half-block characters. The creature blinks, breathes, and shows emotion particles, and maps mood plus reaction to nine distinct expressions. `commitchi pet-demo` previews them all.
+
 ## Phase Checklist
 
 ### Phase 0: Research and Plan
