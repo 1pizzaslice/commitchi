@@ -8,7 +8,7 @@ Goal: Rust TUI for animated Git history playback with a persistent pet companion
 
 ## Current State
 
-Phase 2 is complete on `phase/2-diff-animation`.
+Phase 3 is complete on `phase/3-pet-persistence`.
 
 The Rust workspace exists with:
 
@@ -29,18 +29,16 @@ The project directory `/home/anish/CODE01/kuchbhi/commitchi` is a valid Git repo
 
 ## Recommended Next Step
 
-Stop at the Phase 2 boundary and ask for explicit approval before starting Phase 3.
+Stop at the Phase 3 boundary and ask for explicit approval before starting Phase 4.
 
-On Phase 3 approval:
+On Phase 4 approval:
 
-1. Add the pet mood model behavior beyond the current scaffold.
-2. Add repo-local and global JSON state persistence.
-3. Add `commitchi hook post-commit`.
-4. Add `commitchi install-hook`.
-5. Add file watching while the TUI is open.
-6. Add pet panel/sprite rendering.
-7. Run the dev harness commands.
-8. Update this handoff file and stop for Phase 4 approval.
+1. Add deterministic reaction heuristics based on the selected commit's structured diff stats.
+2. Add reaction text/sprite overlays.
+3. Wire playback-to-pet events so reactions update as commits advance.
+4. Keep mood persistence and hook behavior unchanged unless Phase 4 requires a small extension.
+5. Run the dev harness commands.
+6. Update this handoff file and stop for Phase 5 approval.
 
 ## Remote Setup
 
@@ -105,6 +103,26 @@ Branch strategy:
 - Diff loading is still synchronous when changing commits.
 - Pet UI, persistence, hooks, config files, and file watching are still deferred.
 
+## Phase 3 Implementation Notes
+
+- Phase 3 was implemented on `phase/3-pet-persistence`.
+- `commitchi-pet` now owns:
+  - `PetScope` (`repo`, `global`, `both`)
+  - `Mood`, `MoodConfig`, and recent-consistency mood decay behavior
+  - `ActivityRecord`
+  - JSON `PetState`
+  - `StateFile` and `PetStateFiles`
+- Repo-local state path is `.git/commitchi/state.json` via `Repository::path()/commitchi/state.json`.
+- Global state path checks `COMMITCHI_DATA_DIR`, then `XDG_DATA_HOME`, then platform app-data fallbacks.
+- The TUI defaults to `--pet-scope repo`; `--pet-scope global` and `--pet-scope both` are supported.
+- `commitchi hook post-commit` records the current HEAD commit and defaults to `--scope both`.
+- `commitchi install-hook` writes or replaces a managed `# commitchi hook begin` / `# commitchi hook end` block and defaults to `--scope both`.
+- Existing hook content outside the managed block is preserved, and Unix hooks are made executable.
+- The TUI watches active pet state directories with `notify` and reloads pet state on file changes.
+- TUI pet state directory creation is best-effort so read-only Git metadata does not prevent history playback.
+- The pet panel renders in the right body column at normal 80-column terminal width and is hidden on narrower layouts.
+- Phase 4 reaction heuristics based on diff stats are not implemented yet.
+
 ## Last Verification
 
 Commands passed:
@@ -116,7 +134,16 @@ cargo test --workspace
 cargo run -p commitchi-tui -- --repo .
 ```
 
-The smoke run opened the TUI against this repo, animated diff lines, and exited cleanly with `q`.
+The smoke run opened the TUI against this repo, showed the pet panel at 80 columns, animated diff lines, and exited cleanly with `q`.
+
+Additional Phase 3 smoke:
+
+```sh
+cargo run -p commitchi-tui -- --repo /tmp/commitchi-hook-smoke.2lVcDj hook post-commit --scope repo
+cargo run -p commitchi-tui -- --repo /tmp/commitchi-hook-smoke.2lVcDj install-hook --scope repo
+```
+
+The temp repo smoke wrote `.git/commitchi/state.json` with one activity record and installed `.git/hooks/post-commit` with the Commitchi managed block.
 
 ## Phase Boundary Rule
 

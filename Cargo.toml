@@ -18,6 +18,9 @@ clap = { version = "4.5", features = ["derive"] }
 color-eyre = "0.6"
 crossterm = "0.28"
 git2 = "0.20"
+notify = "8.0"
 ratatui = "0.29"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 tempfile = "3.10"
 thiserror = "2.0"

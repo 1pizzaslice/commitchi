@@ -7,6 +7,7 @@ pub enum AppEvent {
     Input(KeyEvent),
     Tick(Duration),
     Render,
+    StateFileChanged,
 }
 
 #[derive(Debug, Clone)]

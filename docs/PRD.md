@@ -50,6 +50,7 @@ Commitchi is a terminal application that lets a user scrub through a Git reposit
 - State persists across sessions.
 - State updates live when a commit happens while the TUI is open.
 - Scope can be per-repo, global, or both displayed together.
+- Until TOML config lands, the TUI display scope is controlled by `--pet-scope`, defaulting to `repo`. Hook recording defaults to `both` so global aggregation has data when enabled.
 
 ### Mode 3: The Merge
 
@@ -95,4 +96,3 @@ merge_strategy = "first-parent"
 - The diff pane is primary; the pet should add personality without stealing core navigation space.
 - Degrade gracefully on narrow terminals.
 - Never block the UI while computing a large diff.
-

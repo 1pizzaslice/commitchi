@@ -1,11 +1,12 @@
 use commitchi_core::{DiffLine, DiffLineKind, FileDiff, FileStatus, StructuredDiff};
+use commitchi_pet::{now_seconds, ActivityRecord, Mood, PetScope};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
 
-use crate::app::App;
+use crate::app::{App, PetStatus};
 
 pub fn draw(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
@@ -78,13 +79,28 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
 }
 
 fn render_body(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    let layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(34), Constraint::Min(20)])
-        .split(area);
+    if area.width >= 78 {
+        let layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(30),
+                Constraint::Min(22),
+                Constraint::Length(22),
+            ])
+            .split(area);
 
-    render_files(frame, layout[0], app.diff());
-    render_diff(frame, layout[1], app);
+        render_files(frame, layout[0], app.diff());
+        render_diff(frame, layout[1], app);
+        render_pet(frame, layout[2], &app.pet_status());
+    } else {
+        let layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(34), Constraint::Min(20)])
+            .split(area);
+
+        render_files(frame, layout[0], app.diff());
+        render_diff(frame, layout[1], app);
+    }
 }
 
 fn render_files(frame: &mut Frame<'_>, area: Rect, diff: &StructuredDiff) {
@@ -111,6 +127,52 @@ fn render_diff(frame: &mut Frame<'_>, area: Rect, app: &App) {
     frame.render_widget(paragraph, area);
 }
 
+fn render_pet(frame: &mut Frame<'_>, area: Rect, status: &PetStatus) {
+    let mood = primary_mood(status);
+    let style = mood_style(mood);
+    let mut lines = pet_sprite(mood)
+        .into_iter()
+        .map(|line| Line::styled(line, style))
+        .collect::<Vec<_>>();
+
+    lines.push(Line::from(""));
+    match status.scope {
+        PetScope::Repo => {
+            lines.extend(scope_lines(
+                "repo",
+                status.repo_mood,
+                &status.repo_last_activity,
+            ));
+        }
+        PetScope::Global => {
+            lines.extend(scope_lines(
+                "global",
+                status.global_mood,
+                &status.global_last_activity,
+            ));
+        }
+        PetScope::Both => {
+            lines.extend(scope_lines(
+                "repo",
+                status.repo_mood,
+                &status.repo_last_activity,
+            ));
+            lines.extend(scope_lines(
+                "global",
+                status.global_mood,
+                &status.global_last_activity,
+            ));
+        }
+    }
+
+    let paragraph = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!("Pet {}", status.scope)),
+    );
+    frame.render_widget(paragraph, area);
+}
+
 fn render_timeline(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let (position, total) = app.position();
     let lines = vec![
@@ -121,6 +183,64 @@ fn render_timeline(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let paragraph =
         Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Timeline"));
     frame.render_widget(paragraph, area);
+}
+
+fn primary_mood(status: &PetStatus) -> Mood {
+    match status.scope {
+        PetScope::Repo => status.repo_mood.unwrap_or(Mood::Neutral),
+        PetScope::Global => status.global_mood.unwrap_or(Mood::Neutral),
+        PetScope::Both => status
+            .repo_mood
+            .or(status.global_mood)
+            .unwrap_or(Mood::Neutral),
+    }
+}
+
+fn scope_lines(
+    label: &'static str,
+    mood: Option<Mood>,
+    activity: &Option<ActivityRecord>,
+) -> Vec<Line<'static>> {
+    let mood = mood.unwrap_or(Mood::Neutral);
+    let age = activity
+        .as_ref()
+        .map(activity_age)
+        .unwrap_or_else(|| "no commits".to_owned());
+    vec![
+        Line::from(vec![
+            Span::styled(format!("{label:>6} "), Style::default().fg(Color::DarkGray)),
+            Span::styled(mood.to_string(), mood_style(mood)),
+        ]),
+        Line::from(vec![
+            Span::raw("       "),
+            Span::styled(age, Style::default().fg(Color::DarkGray)),
+        ]),
+    ]
+}
+
+fn activity_age(activity: &ActivityRecord) -> String {
+    let seconds = now_seconds()
+        .saturating_sub(activity.recorded_at_seconds)
+        .max(0);
+    if seconds < 60 {
+        "just now".to_owned()
+    } else if seconds < 3_600 {
+        format!("{}m ago", seconds / 60)
+    } else if seconds < 86_400 {
+        format!("{}h ago", seconds / 3_600)
+    } else {
+        format!("{}d ago", seconds / 86_400)
+    }
+}
+
+fn pet_sprite(mood: Mood) -> Vec<&'static str> {
+    match mood {
+        Mood::Thriving => vec![" /\\_/\\", "( ^.^ )", " /|_|\\", "  / \\"],
+        Mood::Content => vec![" /\\_/\\", "( o.o )", " /|_|\\", "  / \\"],
+        Mood::Neutral => vec![" /\\_/\\", "( -.- )", " /|_|\\", "  / \\"],
+        Mood::Anxious => vec![" /\\_/\\", "( o_o )", " /|_|\\", "  / \\"],
+        Mood::Sulking => vec![" /\\_/\\", "( v_v )", " /|_|\\", "  / \\"],
+    }
 }
 
 fn file_item_line(file: &FileDiff) -> Line<'static> {
@@ -248,6 +368,18 @@ fn file_status_style(status: FileStatus) -> Style {
         FileStatus::TypeChanged => Style::default().fg(Color::Magenta),
         FileStatus::Conflicted => Style::default().fg(Color::LightRed),
         FileStatus::Truncated => Style::default().fg(Color::DarkGray),
+    }
+}
+
+fn mood_style(mood: Mood) -> Style {
+    match mood {
+        Mood::Thriving => Style::default()
+            .fg(Color::LightGreen)
+            .add_modifier(Modifier::BOLD),
+        Mood::Content => Style::default().fg(Color::Green),
+        Mood::Neutral => Style::default().fg(Color::Yellow),
+        Mood::Anxious => Style::default().fg(Color::LightMagenta),
+        Mood::Sulking => Style::default().fg(Color::LightRed),
     }
 }
 

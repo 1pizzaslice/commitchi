@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Phase 2 is complete on `phase/2-diff-animation`. The TUI now supports animated diff reveal, playback controls, configurable animation speeds, and separate input/tick/render handling. Phase 3 is pending explicit approval.
+Phase 3 is complete on `phase/3-pet-persistence`. The TUI now supports pet mood persistence, repo/global state scopes, hook recording, hook installation, live state reload, and pet panel rendering. Phase 4 is pending explicit approval.
 
 ## Phase Checklist
 
@@ -98,7 +98,7 @@ Exit criteria passed:
 
 ### Phase 3: Pet and Persistence
 
-Status: pending.
+Status: complete.
 
 Deliverables:
 
@@ -109,6 +109,25 @@ Deliverables:
 - `commitchi install-hook`.
 - File watching while TUI is open.
 - Pet panel/sprite rendering.
+
+Completed:
+
+- Added `commitchi-pet` mood decay and recent-consistency behavior.
+- Added JSON pet state with repo-local and global state file helpers.
+- Added `--pet-scope repo|global|both` for TUI display scope, defaulting to repo.
+- Added `commitchi hook post-commit`, defaulting to recording both repo and global state.
+- Added `commitchi install-hook`, defaulting to a managed hook that records both scopes.
+- Added `notify`-based state watching and reload while the TUI is open.
+- Added a right-side pet sprite/status panel that renders at normal 80-column terminal width.
+- Added tests for mood decay, persistence, scope behavior, hook block management, and existing TUI behavior.
+
+Exit criteria passed:
+
+- `cargo fmt --all -- --check` passes.
+- `cargo clippy --workspace --all-targets -- -D warnings` passes.
+- `cargo test --workspace` passes.
+- Running the TUI in this repo animates diff lines, shows the pet panel, and exits cleanly with `q`.
+- A temporary repo smoke test records `.git/commitchi/state.json` through `commitchi hook post-commit` and installs a managed `post-commit` hook through `commitchi install-hook`.
 
 ### Phase 4: The Merge
 

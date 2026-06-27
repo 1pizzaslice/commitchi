@@ -2,7 +2,7 @@
 
 Commitchi is a Rust TUI for replaying a local Git repository's history like a time machine, with an ASCII companion whose mood reflects commit activity and whose reactions respond to the diff currently on screen.
 
-Phase 2 implements the animated time-machine TUI: repo discovery, commit summaries, structured diffs, file list, timeline scrubber, truncation, line-by-line diff reveal, and playback controls. Pet UI and persistence are planned for later phases.
+Phase 3 implements the animated time-machine TUI plus pet mood persistence: repo discovery, commit summaries, structured diffs, file list, timeline scrubber, truncation, line-by-line diff reveal, playback controls, repo/global pet state, hook commands, live state reload, and a pet panel.
 
 ## Run
 
@@ -16,6 +16,12 @@ Animation speeds can be set at startup:
 cargo run -p commitchi-tui -- --repo . --lines-per-second 60 --commits-per-second 2
 ```
 
+Pet display scope defaults to repo-local state and can be changed at startup:
+
+```sh
+cargo run -p commitchi-tui -- --repo . --pet-scope both
+```
+
 Inside the TUI:
 
 - `h`/Left and `l`/Right navigate commits.
@@ -25,6 +31,18 @@ Inside the TUI:
 - `+`/`=` and `-` adjust commit playback speed.
 - `]` and `[` adjust line reveal speed.
 - `q`, Esc, or Ctrl-C exits.
+
+Record the current HEAD commit in pet state:
+
+```sh
+cargo run -p commitchi-tui -- --repo . hook post-commit
+```
+
+Install a Git `post-commit` hook that invokes Commitchi:
+
+```sh
+cargo run -p commitchi-tui -- --repo . install-hook
+```
 
 ## Check
 
