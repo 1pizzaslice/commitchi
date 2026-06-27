@@ -35,6 +35,9 @@ if [ -z "$version" ]; then
 fi
 
 asset="$BIN-$target.tar.gz"
+# The checksum file is named after the archive without its .tar.gz suffix, and
+# its contents reference the .tar.gz, so `sha256sum -c` works from the same dir.
+sum="$BIN-$target.sha256"
 base="https://github.com/$REPO/releases/download/$version"
 
 tmp="$(mktemp -d)"
@@ -46,8 +49,8 @@ curl -fSL --proto '=https' --tlsv1.2 "$base/$asset" -o "$tmp/$asset" \
 
 # Verify the checksum when available and sha256sum is present.
 if command -v sha256sum >/dev/null 2>&1 \
-  && curl -fsSL "$base/$asset.sha256" -o "$tmp/$asset.sha256" 2>/dev/null; then
-  if (cd "$tmp" && sha256sum -c "$asset.sha256" >/dev/null 2>&1); then
+  && curl -fsSL "$base/$sum" -o "$tmp/$sum" 2>/dev/null; then
+  if (cd "$tmp" && sha256sum -c "$sum" >/dev/null 2>&1); then
     say "Checksum verified."
   else
     err "checksum verification failed."
