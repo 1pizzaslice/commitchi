@@ -1,10 +1,15 @@
 [package]
-name = "commitchi-tui"
+name = "commitchi"
+description = "Replay your Git history like a movie in the terminal, with a pixel-art pet that reacts to every commit."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords = ["git", "tui", "diff", "history", "pet"]
+categories = ["command-line-utilities", "development-tools", "visualization"]
 
 [[bin]]
 name = "commitchi"
@@ -13,8 +18,8 @@ path = "src/main.rs"
 [dependencies]
 clap.workspace = true
 color-eyre.workspace = true
-commitchi-core = { path = "../core" }
-commitchi-pet = { path = "../pet" }
+commitchi-core = { path = "../core", version = "0.1.0" }
+commitchi-pet = { path = "../pet", version = "0.1.0" }
 crossterm.workspace = true
 notify.workspace = true
 ratatui.workspace = true

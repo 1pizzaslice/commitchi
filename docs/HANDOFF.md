@@ -14,7 +14,7 @@ The Rust workspace exists with:
 
 - `crates/core` as `commitchi-core`
 - `crates/pet` as `commitchi-pet`
-- `crates/tui` as `commitchi-tui`, exposing the `commitchi` binary
+- `crates/tui` as `commitchi`, exposing the `commitchi` binary
 
 The workspace root `/home/anish/CODE01/kuchbhi` contains multiple unrelated projects. `commitchi/` is a new scoped project directory for this work.
 
@@ -65,7 +65,7 @@ Branch strategy:
 - Diffs use first-parent comparison for merge commits.
 - Structured diff lines are built from `git2` callbacks, not parsed unified diff text.
 - Large diffs are capped with configurable `line_limit` and `file_limit`.
-- `commitchi-tui` currently loads diffs synchronously when changing commits.
+- `commitchi` currently loads diffs synchronously when changing commits.
 - Keybindings:
   - `h`/Left and `l`/Right navigate one commit.
   - `j`/PageDown and `k`/PageUp jump by ten commits.
@@ -125,7 +125,7 @@ Branch strategy:
   - `wincing` for large deletion-heavy diffs.
   - `nodding` for three tiny commits in a sequential playback/navigation streak.
   - `calm` for unremarkable diffs.
-- `commitchi-tui` maps the selected commit's `StructuredDiff` into reaction stats and exposes the current reaction through `PetStatus`.
+- `commitchi` maps the selected commit's `StructuredDiff` into reaction stats and exposes the current reaction through `PetStatus`.
 - Forward playback and one-step forward navigation preserve the tiny-commit streak; jumps and backward navigation reset it.
 - The pet panel now renders a short reaction message and a reaction-specific face above the persisted mood/status lines.
 - Mood persistence, hook behavior, and state file format remain unchanged.
@@ -202,8 +202,8 @@ Commands passed:
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo run -p commitchi-tui -- --help
-cargo run -p commitchi-tui -- --repo .
+cargo run -p commitchi -- --help
+cargo run -p commitchi -- --repo .
 ```
 
 The smoke run opened the TUI against this repo, showed the pet panel at 80 columns, rendered the `large addition` reaction overlay with the excited face, animated diff lines, and exited cleanly with `q`.

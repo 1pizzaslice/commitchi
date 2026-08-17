@@ -51,7 +51,7 @@ Deliverables:
 
 Completed:
 
-- Added a Rust workspace with `commitchi-core`, `commitchi-pet`, and `commitchi-tui`.
+- Added a Rust workspace with `commitchi-core`, `commitchi-pet`, and `commitchi`.
 - Implemented repo discovery from cwd or `--repo`.
 - Implemented oldest-to-newest commit summaries.
 - Implemented static structured diffs with file list, stats, and truncation.
@@ -187,7 +187,7 @@ Exit criteria passed:
 - `cargo fmt --all -- --check` passes.
 - `cargo clippy --workspace --all-targets -- -D warnings` passes.
 - `cargo test --workspace` passes.
-- `cargo run -p commitchi-tui -- --help` renders release-oriented help.
+- `cargo run -p commitchi -- --help` renders release-oriented help.
 - Running the TUI in this repo shows the pet panel/reaction overlay, animates diff lines, and exits cleanly with `q`.
 
 ## Branch Strategy
