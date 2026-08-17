@@ -222,8 +222,8 @@ Future strategy:
 - Workspace package names:
   - `commitchi-core`
   - `commitchi-pet`
-  - `commitchi-tui`
-- The `commitchi-tui` package exposes the `commitchi` binary.
+  - `commitchi`
+- The `commitchi` package (in `crates/tui`) exposes the `commitchi` binary.
 - Phase 1 diff loading is synchronous, but app state calls through `RepoHandle::diff_for_commit` so Phase 2 can move diff work off the render path without changing the core model.
 - `commitchi-core` uses `git2` diff callbacks to build `StructuredDiff`, `FileDiff`, and `DiffLine` values directly.
 - The lockfile pins Ratatui's transitive `instability` dependency to `0.3.10`, which is compatible with Rust 1.87.
@@ -246,7 +246,7 @@ Future strategy:
 - Mood is computed from wall-clock recency using the PRD threshold defaults, with recent consistency softening neutral/anxious decay.
 - `commitchi hook post-commit` discovers the repo, records HEAD into the selected state scope, and writes pretty JSON state.
 - `commitchi install-hook` writes a managed post-commit block that invokes `commitchi hook post-commit --scope <scope>`.
-- `commitchi-tui` watches active pet state file directories with `notify` and reloads state on change. TUI startup treats watch-directory creation as best-effort so read-only Git metadata does not block history playback.
+- `commitchi` watches active pet state file directories with `notify` and reloads state on change. TUI startup treats watch-directory creation as best-effort so read-only Git metadata does not block history playback.
 - The pet panel renders at normal 80-column width and is hidden only on narrower layouts where diff readability would collapse.
 - Phase 3 deferred structured-diff reaction heuristics to Phase 4.
 
@@ -260,7 +260,7 @@ Future strategy:
   - Additions or deletions of at least 120 lines, when at least double the opposite side, map to `excited` or `wincing`.
   - Three tiny commits in a sequential playback/navigation streak map to `nodding`.
   - Other commits map to `calm`.
-- `commitchi-tui` maps `StructuredDiff` into `ReactionStats`, including file status counts and binary/truncated flags.
+- `commitchi` maps `StructuredDiff` into `ReactionStats`, including file status counts and binary/truncated flags.
 - The tiny-commit streak is intentionally app-local and playback-local; it is not persisted to pet state.
 - The pet panel renders a short reaction message and reaction-specific face while leaving persisted mood scope/status behavior unchanged.
 

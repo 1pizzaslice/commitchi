@@ -1,10 +1,15 @@
 [package]
 name = "commitchi-pet"
+description = "Persistent pet mood state derived from commit cadence — the pet behind Commitchi."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords = ["git", "commit", "pet", "state"]
+categories = ["development-tools"]
 
 [dependencies]
 serde.workspace = true

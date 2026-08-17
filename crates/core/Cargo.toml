@@ -1,10 +1,15 @@
 [package]
 name = "commitchi-core"
+description = "Local Git history reading and structured diffs — the engine behind Commitchi."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords = ["git", "diff", "history", "commit"]
+categories = ["development-tools"]
 
 [dependencies]
 git2.workspace = true

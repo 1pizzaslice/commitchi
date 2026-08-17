@@ -12,7 +12,7 @@ Use these commands:
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo run -p commitchi-tui -- --repo .
+cargo run -p commitchi -- --repo .
 ```
 
 If the binary package name changes, update this file and `docs/HANDOFF.md`.

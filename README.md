@@ -31,7 +31,16 @@ it to `~/.local/bin/commitchi`.
 Supported: `x86_64` and `aarch64` Linux. The binary is statically linked, so it
 runs across distributions without extra system libraries.
 
-> Prefer to build it yourself? See [From source](#from-source) below.
+### With Cargo
+
+If you already have a Rust toolchain (1.87+ and a C compiler, since `git2`
+builds a vendored `libgit2`):
+
+```sh
+cargo install commitchi
+```
+
+> Prefer to build from a checkout? See [From source](#from-source) below.
 
 After installing, open any Git repository and run:
 
@@ -186,13 +195,16 @@ See `commitchi --help` for every flag.
 Requires Rust 1.87+ and a C toolchain (`git2` builds a vendored `libgit2`).
 
 ```sh
-# install straight from the repo
-cargo install --git https://github.com/1pizzaslice/commitchi commitchi-tui
+# published release from crates.io
+cargo install commitchi
+
+# or the latest unreleased commit
+cargo install --git https://github.com/1pizzaslice/commitchi commitchi
 
 # or clone and build
 git clone https://github.com/1pizzaslice/commitchi
 cd commitchi
-cargo run -p commitchi-tui -- --repo .
+cargo run -p commitchi -- --repo .
 ```
 
 ---
@@ -200,7 +212,8 @@ cargo run -p commitchi-tui -- --repo .
 ## Uninstall
 
 ```sh
-rm ~/.local/bin/commitchi              # or wherever you installed it
+cargo uninstall commitchi              # if you installed it with cargo
+rm ~/.local/bin/commitchi              # if you used install.sh
 rm -rf .git/commitchi                  # per-repo pet state (optional)
 ```
 
