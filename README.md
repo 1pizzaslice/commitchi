@@ -40,6 +40,22 @@ builds a vendored `libgit2`):
 cargo install commitchi
 ```
 
+This installs to `~/.cargo/bin`. If your shell then says `commitchi: command
+not found`, that directory isn't on your `PATH` — common when Rust came from a
+distro package or Homebrew rather than rustup. Check with:
+
+```sh
+~/.cargo/bin/commitchi --version   # works? then it's just PATH
+```
+
+Add it to your shell config (`~/.bashrc`, `~/.zshrc`) and restart your shell:
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+On fish: `fish_add_path ~/.cargo/bin`.
+
 > Prefer to build from a checkout? See [From source](#from-source) below.
 
 After installing, open any Git repository and run:
